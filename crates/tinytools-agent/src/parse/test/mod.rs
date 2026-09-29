@@ -4,6 +4,7 @@
 mod bare_json;
 mod element;
 mod engine;
+mod function_call;
 mod glm;
 mod harmony_mistral;
 mod invoke_xml;

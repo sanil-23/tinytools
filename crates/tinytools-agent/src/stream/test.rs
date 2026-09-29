@@ -52,6 +52,31 @@ fn markup_split_across_fragments_never_leaks() {
 }
 
 #[test]
+fn function_call_prefix_split_across_fragments_is_scrubbed() {
+    let (out, calls) = scrub_all(&[
+        "answer: ",
+        "function_",
+        "call:{\"id\":\"c1\",\"call\":\"read_ledger\",\"arguments\":",
+        "{\"ledger\":\"tasks\"}} done",
+    ]);
+    assert_eq!(out, "answer:  done");
+    assert_eq!(calls, 1);
+}
+
+#[test]
+fn a_function_call_marker_with_no_body_is_held_until_the_next_fragment() {
+    let mut s = StreamScrubber::new();
+    let first = s.feed("answer: function_call: ");
+    assert_eq!(first.text, "answer: ");
+    assert!(first.calls.is_empty());
+
+    let second = s.feed(r#"{"call":"echo","arguments":{}} done"#);
+    assert_eq!(second.text, " done");
+    assert_eq!(second.calls.len(), 1);
+    assert_eq!(second.calls[0].name, "echo");
+}
+
+#[test]
 fn a_partial_open_marker_is_held_not_emitted() {
     let mut s = StreamScrubber::new();
     let first = s.feed("value <tool");
