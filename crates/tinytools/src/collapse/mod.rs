@@ -48,6 +48,15 @@ pub struct CollapsedAction<'a> {
     pub tool: &'a dyn Tool,
 }
 
+impl std::fmt::Debug for CollapsedAction<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CollapsedAction")
+            .field("action", &self.action)
+            .field("tool", &self.tool.name())
+            .finish()
+    }
+}
+
 /// Build the collapsed `parameters_schema` from the members' own schemas.
 ///
 /// The result is an object with `action` (a required enum over the member
@@ -83,11 +92,11 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
 
     // Rewrite each description to name its actions. Done in a second pass so
     // the prefix can list every owner, which the first pass does not yet know.
-    for (name, spec) in properties.iter_mut() {
+    for (name, spec) in &mut properties {
         let Some(object) = spec.as_object_mut() else {
             continue;
         };
-        let owned_by = owners.get(name).map(Vec::as_slice).unwrap_or(&[]);
+        let owned_by = owners.get(name).map_or(&[][..], Vec::as_slice);
         // A property every action takes needs no prefix — saying so would be
         // noise on every line.
         if owned_by.len() == actions.len() || owned_by.is_empty() {
@@ -141,7 +150,7 @@ pub fn strictest_permission(actions: &[CollapsedAction<'_>]) -> PermissionLevel 
     actions
         .iter()
         .map(|entry| entry.tool.permission_level())
-        .max_by_key(permission_rank)
+        .max_by_key(|level| permission_rank(*level))
         .unwrap_or(PermissionLevel::None)
 }
 
@@ -159,7 +168,7 @@ pub fn any_external_effect(actions: &[CollapsedAction<'_>]) -> bool {
 /// whatever rank its discriminant implied, whereas here it is a compile error
 /// until someone decides where it sits. Getting that wrong under-restricts a
 /// collapsed tool, which is the failure this module exists to avoid.
-fn permission_rank(level: &PermissionLevel) -> u8 {
+fn permission_rank(level: PermissionLevel) -> u8 {
     match level {
         PermissionLevel::None => 0,
         PermissionLevel::ReadOnly => 1,

@@ -1,5 +1,7 @@
 //! Tests for deferred-tool stripping.
 
+#![allow(clippy::unwrap_used, clippy::unnecessary_literal_bound)]
+
 use std::collections::HashSet;
 
 use crate::{Tool, ToolExposure, ToolResult};

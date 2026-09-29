@@ -1,5 +1,7 @@
 //! Tests for the action-collapse building blocks.
 
+#![allow(clippy::unwrap_used, clippy::unnecessary_literal_bound)]
+
 use super::*;
 use crate::ToolResult;
 use async_trait::async_trait;
@@ -70,7 +72,7 @@ fn the_union_carries_every_members_properties() {
         },
     ];
     let merged = merge_action_schemas(&actions);
-    let props = merged["properties"].as_object().expect("properties");
+    let props = merged["properties"].as_object().unwrap();
     assert!(props.contains_key("action"));
     assert!(props.contains_key("job_id"));
     assert!(props.contains_key("limit"));

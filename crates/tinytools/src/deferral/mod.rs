@@ -33,8 +33,8 @@ pub const TOOL_SEARCH_NAME: &str = "tool_search";
 /// Hidden tools are dropped and **not** returned: they are not searchable
 /// either, by definition.
 #[must_use]
-pub fn strip_deferred_from_visible(
-    visible: &mut HashSet<String>,
+pub fn strip_deferred_from_visible<S: std::hash::BuildHasher>(
+    visible: &mut HashSet<String, S>,
     tools: &[Box<dyn Tool>],
 ) -> HashSet<String> {
     let mut deferred = HashSet::new();
