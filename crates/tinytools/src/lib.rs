@@ -105,6 +105,7 @@ pub mod classification;
 pub mod collapse;
 pub mod collapse;
 pub mod command_output;
+pub mod command_output;
 pub mod context;
 pub mod deferral;
 pub mod deferral;
@@ -131,6 +132,7 @@ pub use collapse::{
     CollapsedAction, any_external_effect, args_without_action, merge_action_schemas, resolve,
     strictest_permission, unknown_action_message,
 };
+pub use command_output::{command_failure, render_command_failure, sandbox_exit_code};
 pub use command_output::{command_failure, render_command_failure, sandbox_exit_code};
 pub use context::ToolRunContext;
 pub use deferral::{deferred_tool_names, strip_deferred_from_visible};
