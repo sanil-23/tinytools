@@ -103,6 +103,7 @@
 pub mod call;
 pub mod classification;
 pub mod collapse;
+pub mod collapse;
 pub mod command_output;
 pub mod context;
 pub mod deferral;
@@ -121,6 +122,10 @@ pub use call::{
     project_injected_arguments,
 };
 pub use classification::{ToolCategory, ToolScope};
+pub use collapse::{
+    CollapsedAction, any_external_effect, args_without_action, merge_action_schemas, resolve,
+    strictest_permission, unknown_action_message,
+};
 pub use collapse::{
     CollapsedAction, any_external_effect, args_without_action, merge_action_schemas, resolve,
     strictest_permission, unknown_action_message,
