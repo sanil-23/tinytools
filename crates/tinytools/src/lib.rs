@@ -107,6 +107,7 @@ pub mod collapse;
 pub mod command_output;
 pub mod context;
 pub mod deferral;
+pub mod deferral;
 pub mod naming;
 pub mod permission;
 pub mod policy;
@@ -132,6 +133,7 @@ pub use collapse::{
 };
 pub use command_output::{command_failure, render_command_failure, sandbox_exit_code};
 pub use context::ToolRunContext;
+pub use deferral::{deferred_tool_names, strip_deferred_from_visible};
 pub use deferral::{deferred_tool_names, strip_deferred_from_visible};
 pub use naming::{
     ContextDetailOptions, context_detail_from_args, context_detail_from_args_with,
