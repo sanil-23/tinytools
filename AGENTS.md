@@ -59,7 +59,8 @@ approval — it belongs to the host, whose threat model and configuration the
 decision depends on.
 
 `crates/tinytools-std` holds host-independent tool building blocks (cross-agent
-file staleness tracking, SSRF-safe URL validation, PATH probing). It is not part of the dependency-light vocabulary crate and may pull
+file staleness tracking, SSRF-safe URL validation, PATH probing, and the
+filesystem tools, which ask a host-implemented `FsGate` before they act). It is not part of the dependency-light vocabulary crate and may pull
 in `tokio`, `parking_lot` and `log`.
 
 Add a crate by creating `crates/<name>/` — `members = ["crates/*"]` picks it up

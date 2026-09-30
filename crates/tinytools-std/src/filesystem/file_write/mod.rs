@@ -35,7 +35,7 @@ impl FileWriteTool {
     }
 
     /// Use the same effective workspace root for approval routing that tool
-    /// execution receives through its [`ToolExecutionContext`].
+    /// execution receives through its `ToolExecutionContext`.
     pub fn with_approval_workspace_root(
         gate: Arc<dyn FsGate>,
         approval_workspace_root: std::path::PathBuf,
