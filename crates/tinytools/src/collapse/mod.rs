@@ -91,6 +91,14 @@ pub fn validate_actions(actions: &[CollapsedAction<'_>]) -> Result<(), CollapseE
 /// and `todo` already use — so the model can tell which fields apply to the
 /// action it picked.
 ///
+/// When members declare the same property with different schemas, neither is
+/// dropped: the merged property is an `anyOf` over the distinct definitions,
+/// so no action's constraints are lost and member order does not matter.
+/// Definitions that differ only in their `description` count as the same.
+///
+/// The `action` discriminator always wins over a member property of the same
+/// name; [`validate_actions`] reports such a member as an error.
+///
 /// Nothing is `required` beyond `action`. A union cannot express "required for
 /// this action only", and marking a field required because one action needs it
 /// would make every other action's call invalid. The members already validate
@@ -98,7 +106,8 @@ pub fn validate_actions(actions: &[CollapsedAction<'_>]) -> Result<(), CollapseE
 /// where it can be specific rather than in a schema that has to be vague.
 #[must_use]
 pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
-    let mut properties: BTreeMap<String, Value> = BTreeMap::new();
+    // Every distinct definition of each property, in first-seen order.
+    let mut definitions: BTreeMap<String, Vec<Value>> = BTreeMap::new();
     // Track which actions mentioned each property so a shared field reads as
     // shared rather than as belonging to whichever action happened to be first.
     let mut owners: BTreeMap<String, Vec<&str>> = BTreeMap::new();
@@ -109,12 +118,31 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
             continue;
         };
         for (name, spec) in props {
+            if name == ACTION_KEY {
+                continue;
+            }
             owners.entry(name.clone()).or_default().push(entry.action);
-            properties
-                .entry(name.clone())
-                .or_insert_with(|| spec.clone());
+            let known = definitions.entry(name.clone()).or_default();
+            if !known
+                .iter()
+                .any(|existing| same_definition(existing, spec))
+            {
+                known.push(spec.clone());
+            }
         }
     }
+
+    let mut properties: BTreeMap<String, Value> = definitions
+        .into_iter()
+        .map(|(name, mut specs)| {
+            let spec = if specs.len() == 1 {
+                specs.remove(0)
+            } else {
+                json!({ "anyOf": specs })
+            };
+            (name, spec)
+        })
+        .collect();
 
     // Rewrite each description to name its actions. Done in a second pass so
     // the prefix can list every owner, which the first pass does not yet know.
@@ -148,29 +176,60 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
         .collect();
 
     let mut merged = Map::new();
+    for (name, spec) in properties {
+        merged.insert(name, spec);
+    }
+    // Inserted last so nothing a member declares can replace it.
     merged.insert(
-        "action".to_string(),
+        ACTION_KEY.to_string(),
         json!({
             "type": "string",
             "enum": enum_values,
             "description": "Which operation to run."
         }),
     );
-    for (name, spec) in properties {
-        merged.insert(name, spec);
-    }
 
     json!({
         "type": "object",
         "properties": Value::Object(merged),
-        "required": ["action"]
+        "required": [ACTION_KEY]
     })
+}
+
+/// Whether two property schemas constrain the same thing, ignoring the
+/// human-facing `description`.
+fn same_definition(a: &Value, b: &Value) -> bool {
+    match (a.as_object(), b.as_object()) {
+        (Some(a), Some(b)) => {
+            let strip = |object: &Map<String, Value>| {
+                let mut object = object.clone();
+                object.remove("description");
+                object
+            };
+            strip(a) == strip(b)
+        }
+        _ => a == b,
+    }
+}
+
+/// The least privilege any member requires.
+///
+/// The answer for the argument-free [`Tool::permission_level`], which the
+/// [`Tool`] contract defines as the minimum over a multi-action tool's actions
+/// so a caller entitled to the read-only half is not statically blocked. The
+/// exact per-call level comes from [`permission_for_args`].
+#[must_use]
+pub fn minimum_permission(actions: &[CollapsedAction<'_>]) -> PermissionLevel {
+    actions
+        .iter()
+        .map(|entry| entry.tool.permission_level())
+        .min_by_key(|level| permission_rank(*level))
+        .unwrap_or(PermissionLevel::None)
 }
 
 /// The strictest permission level any member requires.
 ///
-/// Used for the argument-free [`Tool::permission_level`], which cannot know
-/// which action is coming. Over-restricting is the only safe direction.
+/// The fallback [`permission_for_args`] uses when the call selects no member.
 #[must_use]
 pub fn strictest_permission(actions: &[CollapsedAction<'_>]) -> PermissionLevel {
     actions
@@ -180,10 +239,54 @@ pub fn strictest_permission(actions: &[CollapsedAction<'_>]) -> PermissionLevel 
         .unwrap_or(PermissionLevel::None)
 }
 
+/// The answer for [`Tool::permission_level_with_args`]: the selected member's
+/// own argument-aware level, asked with the dispatch key stripped.
+///
+/// A call whose `action` is missing or unknown gets
+/// [`strictest_permission`] — over-restricting is the only safe direction when
+/// the member is not known.
+#[must_use]
+pub fn permission_for_args(actions: &[CollapsedAction<'_>], args: &Value) -> PermissionLevel {
+    match selected(actions, args) {
+        Some(entry) => entry
+            .tool
+            .permission_level_with_args(&args_without_action(args)),
+        None => strictest_permission(actions),
+    }
+}
+
 /// `true` when any member has an external effect.
+///
+/// The answer for the argument-free [`Tool::external_effect`]. It sees only
+/// the members' own argument-free answers, so a host's approval gate must use
+/// [`external_effect_for_args`], which reaches members that classify per call.
 #[must_use]
 pub fn any_external_effect(actions: &[CollapsedAction<'_>]) -> bool {
     actions.iter().any(|entry| entry.tool.external_effect())
+}
+
+/// The answer for [`Tool::external_effect_with_args`]: the selected member's
+/// own argument-aware answer, asked with the dispatch key stripped.
+///
+/// A call whose `action` is missing or unknown gets [`any_external_effect`];
+/// such a call fails before any member runs.
+#[must_use]
+pub fn external_effect_for_args(actions: &[CollapsedAction<'_>], args: &Value) -> bool {
+    match selected(actions, args) {
+        Some(entry) => entry
+            .tool
+            .external_effect_with_args(&args_without_action(args)),
+        None => any_external_effect(actions),
+    }
+}
+
+/// The member a call's `action` argument selects, if any.
+fn selected<'a>(
+    actions: &'a [CollapsedAction<'a>],
+    args: &Value,
+) -> Option<&'a CollapsedAction<'a>> {
+    let action = args.get(ACTION_KEY).and_then(Value::as_str)?;
+    resolve(actions, action)
 }
 
 /// Order the permission levels from least to most privileged.
@@ -240,7 +343,7 @@ pub fn args_without_action(args: &Value) -> Value {
     match args.as_object() {
         Some(object) => {
             let mut cloned = object.clone();
-            cloned.remove("action");
+            cloned.remove(ACTION_KEY);
             Value::Object(cloned)
         }
         None => args.clone(),

@@ -194,3 +194,17 @@ async fn global_api_tracks_reads_writes_and_locks() {
     let guard = acquire_path_lock(&path).await;
     assert!(guard.is_some());
 }
+
+#[test]
+fn paths_written_by_keeps_a_path_after_another_agent_overwrites_it() {
+    use crate::file_state::{init_global, record_write, try_global};
+
+    init_global(true);
+    let coord = try_global().expect("coordinator enabled");
+    let path = PathBuf::from("/tmp/test/history-shared.txt");
+    record_write("history-child-1", path.clone());
+    record_write("history-child-2", path.clone());
+
+    let result = coord.paths_written_by(&["history-child-1".to_string()]);
+    assert_eq!(result.get("history-child-1"), Some(&vec![path]));
+}

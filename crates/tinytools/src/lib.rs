@@ -122,8 +122,9 @@ pub use call::{
 };
 pub use classification::{ToolCategory, ToolScope};
 pub use collapse::{
-    CollapsedAction, any_external_effect, args_without_action, merge_action_schemas, resolve,
-    strictest_permission, unknown_action_message,
+    CollapseError, CollapsedAction, any_external_effect, args_without_action,
+    external_effect_for_args, merge_action_schemas, minimum_permission, permission_for_args,
+    resolve, strictest_permission, unknown_action_message, validate_actions,
 };
 pub use command_output::{command_failure, render_command_failure, sandbox_exit_code};
 pub use context::ToolRunContext;
