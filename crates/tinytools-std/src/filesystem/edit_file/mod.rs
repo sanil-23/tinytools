@@ -35,7 +35,7 @@ impl EditFileTool {
 
     /// Sends this tool's writes somewhere other than the OS.
     #[cfg(test)]
-    pub fn with_sink(mut self, sink: Arc<dyn super::file_sink::FileSink>) -> Self {
+    pub(super) fn with_sink(mut self, sink: Arc<dyn super::file_sink::FileSink>) -> Self {
         self.sink = sink;
         self
     }
@@ -153,12 +153,13 @@ impl EditFileTool {
         // `canonicalize` resolves symlinks, so checking after that point
         // would always see the link's final target.
         if let Ok(meta) = tokio::fs::symlink_metadata(&full).await
-            && meta.file_type().is_symlink() {
-                return Ok(ToolResult::error(format!(
-                    "Refusing to edit through symlink: {}",
-                    full.display()
-                )));
-            }
+            && meta.file_type().is_symlink()
+        {
+            return Ok(ToolResult::error(format!(
+                "Refusing to edit through symlink: {}",
+                full.display()
+            )));
+        }
 
         // Security check: validate path string, resolve symlinks, confirm workspace containment.
         let resolved = match path_policy.validate_path(path).await {
@@ -167,12 +168,13 @@ impl EditFileTool {
         };
 
         if let Ok(meta) = tokio::fs::metadata(&resolved).await
-            && meta.len() > MAX_FILE_BYTES {
-                return Ok(ToolResult::error(format!(
-                    "File too large: {} bytes (limit: {MAX_FILE_BYTES} bytes)",
-                    meta.len()
-                )));
-            }
+            && meta.len() > MAX_FILE_BYTES
+        {
+            return Ok(ToolResult::error(format!(
+                "File too large: {} bytes (limit: {MAX_FILE_BYTES} bytes)",
+                meta.len()
+            )));
+        }
 
         // Acquire per-path lock for the read-modify-write section.
         let _path_guard = file_state::acquire_path_lock(&resolved).await;

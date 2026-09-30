@@ -89,6 +89,7 @@ impl GitOperationsTool {
     }
 
     /// Check if an operation is read-only
+    #[allow(dead_code)] // exercised by the tests; kept with `requires_write_access`
     fn is_read_only(&self, operation: &str) -> bool {
         matches!(
             operation,
@@ -134,16 +135,17 @@ impl GitOperationsTool {
                 // Ordinary changed entry
                 let mut parts = rest.splitn(3, ' ');
                 if let (Some(staging), Some(path)) = (parts.next(), parts.next())
-                    && !staging.is_empty() {
-                        let status_char = staging.chars().next().unwrap_or(' ');
-                        if status_char != '.' && status_char != ' ' {
-                            staged.push(json!({"path": path, "status": status_char}));
-                        }
-                        let status_char = staging.chars().nth(1).unwrap_or(' ');
-                        if status_char != '.' && status_char != ' ' {
-                            unstaged.push(json!({"path": path, "status": status_char}));
-                        }
+                    && !staging.is_empty()
+                {
+                    let status_char = staging.chars().next().unwrap_or(' ');
+                    if status_char != '.' && status_char != ' ' {
+                        staged.push(json!({"path": path, "status": status_char}));
                     }
+                    let status_char = staging.chars().nth(1).unwrap_or(' ');
+                    if status_char != '.' && status_char != ' ' {
+                        unstaged.push(json!({"path": path, "status": status_char}));
+                    }
+                }
             } else if let Some(rest) = line.strip_prefix("? ") {
                 untracked.push(rest.to_string());
             }
@@ -254,7 +256,10 @@ impl GitOperationsTool {
     }
 
     async fn git_log(&self, cwd: &Path, args: serde_json::Value) -> anyhow::Result<ToolResult> {
-        let limit_raw = args.get("limit").and_then(serde_json::Value::as_u64).unwrap_or(10);
+        let limit_raw = args
+            .get("limit")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(10);
         let limit = usize::try_from(limit_raw).unwrap_or(usize::MAX).min(1000);
         let limit_str = limit.to_string();
 
@@ -430,7 +435,10 @@ impl GitOperationsTool {
             "pop" => self.run_git_command_in(cwd, &["stash", "pop"]).await,
             "list" => self.run_git_command_in(cwd, &["stash", "list"]).await,
             "drop" => {
-                let index_raw = args.get("index").and_then(serde_json::Value::as_u64).unwrap_or(0);
+                let index_raw = args
+                    .get("index")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
                 let index = i32::try_from(index_raw)
                     .map_err(|_| anyhow::anyhow!("stash index too large: {index_raw}"))?;
                 self.run_git_command_in(cwd, &["stash", "drop", &format!("stash@{{{index}}}")])

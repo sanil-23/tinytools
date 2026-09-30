@@ -6,6 +6,23 @@
 //! trait ([`FsGate`]) is the whole seam; nothing here knows what an autonomy
 //! level, an approval prompt or a workspace boundary is.
 
+// These tools moved here verbatim from a host crate; their behavior, messages
+// and control flow are pinned by tests and by the fixtures in `fixtures/`, so
+// the purely stylistic pedantic lints below are allowed rather than reshaping
+// working code (long `execute` bodies, `usize as f64` size labels, and so on).
+#![allow(
+    clippy::too_many_lines,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::similar_names,
+    clippy::used_underscore_binding,
+    clippy::manual_let_else,
+    clippy::format_push_string,
+    clippy::unwrap_used,
+    clippy::unused_self,
+    clippy::unnecessary_debug_formatting
+)]
+
 mod apply_patch;
 mod csv_export;
 mod edit_file;

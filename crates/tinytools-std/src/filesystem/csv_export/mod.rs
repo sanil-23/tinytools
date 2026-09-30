@@ -57,9 +57,10 @@ fn resolve_columns(items: &[serde_json::Value], columns: Option<&[String]>) -> V
     }
     // Collect keys from the first object.
     if let Some(first) = items.first()
-        && let Some(obj) = first.as_object() {
-            return obj.keys().cloned().collect();
-        }
+        && let Some(obj) = first.as_object()
+    {
+        return obj.keys().cloned().collect();
+    }
     Vec::new()
 }
 
@@ -225,12 +226,13 @@ impl CsvExportTool {
 
         // If the target already exists and is a symlink, refuse to follow it
         if let Ok(meta) = tokio::fs::symlink_metadata(&resolved_target).await
-            && meta.file_type().is_symlink() {
-                return Ok(ToolResult::error(format!(
-                    "Refusing to write through symlink: {}",
-                    resolved_target.display()
-                )));
-            }
+            && meta.file_type().is_symlink()
+        {
+            return Ok(ToolResult::error(format!(
+                "Refusing to write through symlink: {}",
+                resolved_target.display()
+            )));
+        }
 
         if !self.gate.record_action() {
             return Ok(ToolResult::error(

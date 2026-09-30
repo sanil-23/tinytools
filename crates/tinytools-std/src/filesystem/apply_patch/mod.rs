@@ -211,9 +211,10 @@ impl ApplyPatchTool {
         for p in &unique_paths {
             let full = path_policy.action_dir().join(p);
             if let Ok(resolved) = tokio::fs::canonicalize(&full).await
-                && let Some(guard) = file_state::acquire_path_lock(&resolved).await {
-                    _path_guards.push(guard);
-                }
+                && let Some(guard) = file_state::acquire_path_lock(&resolved).await
+            {
+                _path_guards.push(guard);
+            }
         }
 
         // File-state guard: reject edits based on stale or partial reads.
@@ -252,12 +253,13 @@ impl ApplyPatchTool {
                 // canonicalize resolves symlinks, so a check after that
                 // point would never see the link.
                 if let Ok(meta) = tokio::fs::symlink_metadata(&full).await
-                    && meta.file_type().is_symlink() {
-                        return Ok(ToolResult::error(format!(
-                            "edit[{}]: refusing to edit through symlink",
-                            edit.index
-                        )));
-                    }
+                    && meta.file_type().is_symlink()
+                {
+                    return Ok(ToolResult::error(format!(
+                        "edit[{}]: refusing to edit through symlink",
+                        edit.index
+                    )));
+                }
 
                 // Security check: validate path string, resolve symlinks, confirm
                 // workspace containment. A create has no file to canonicalize,
@@ -281,12 +283,13 @@ impl ApplyPatchTool {
                 };
                 if edit.create {
                     if let Some(parent) = resolved.parent()
-                        && let Err(e) = tokio::fs::create_dir_all(parent).await {
-                            return Ok(ToolResult::error(format!(
-                                "edit[{}]: failed to create parent of {}: {e}",
-                                edit.index, edit.path
-                            )));
-                        }
+                        && let Err(e) = tokio::fs::create_dir_all(parent).await
+                    {
+                        return Ok(ToolResult::error(format!(
+                            "edit[{}]: failed to create parent of {}: {e}",
+                            edit.index, edit.path
+                        )));
+                    }
                     buffers.insert(
                         edit.path.clone(),
                         FileBuffer {
@@ -299,13 +302,14 @@ impl ApplyPatchTool {
                     continue;
                 }
                 if let Ok(meta) = tokio::fs::metadata(&resolved).await
-                    && meta.len() > MAX_FILE_BYTES {
-                        return Ok(ToolResult::error(format!(
-                            "edit[{}]: file too large ({} bytes)",
-                            edit.index,
-                            meta.len()
-                        )));
-                    }
+                    && meta.len() > MAX_FILE_BYTES
+                {
+                    return Ok(ToolResult::error(format!(
+                        "edit[{}]: file too large ({} bytes)",
+                        edit.index,
+                        meta.len()
+                    )));
+                }
                 let contents = match tokio::fs::read_to_string(&resolved).await {
                     Ok(c) => c,
                     Err(e) => {

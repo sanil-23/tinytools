@@ -21,17 +21,18 @@ pub(super) fn render_status_markdown(
     }
     let push_section = |out: &mut String, label: &str, items: Option<&Vec<serde_json::Value>>| {
         if let Some(items) = items
-            && !items.is_empty() {
-                out.push_str(&format!("\n**{label}** ({})\n", items.len()));
-                for it in items {
-                    if let (Some(p), Some(s)) = (
-                        it.get("path").and_then(|v| v.as_str()),
-                        it.get("status").and_then(|v| v.as_str()),
-                    ) {
-                        out.push_str(&format!("- `{s}` {p}\n"));
-                    }
+            && !items.is_empty()
+        {
+            out.push_str(&format!("\n**{label}** ({})\n", items.len()));
+            for it in items {
+                if let (Some(p), Some(s)) = (
+                    it.get("path").and_then(|v| v.as_str()),
+                    it.get("status").and_then(|v| v.as_str()),
+                ) {
+                    out.push_str(&format!("- `{s}` {p}\n"));
                 }
             }
+        }
     };
     push_section(
         &mut out,
@@ -44,14 +45,15 @@ pub(super) fn render_status_markdown(
         result.get("unstaged").and_then(|v| v.as_array()),
     );
     if let Some(items) = result.get("untracked").and_then(|v| v.as_array())
-        && !items.is_empty() {
-            out.push_str(&format!("\n**untracked** ({})\n", items.len()));
-            for it in items {
-                if let Some(p) = it.as_str() {
-                    out.push_str(&format!("- {p}\n"));
-                }
+        && !items.is_empty()
+    {
+        out.push_str(&format!("\n**untracked** ({})\n", items.len()));
+        for it in items {
+            if let Some(p) = it.as_str() {
+                out.push_str(&format!("- {p}\n"));
             }
         }
+    }
     out
 }
 
@@ -75,7 +77,10 @@ pub(super) fn render_branch_markdown(current: &str, branches: &[serde_json::Valu
     let mut out = format!("**current**: `{current}`\n\n## Branches\n");
     for b in branches {
         let name = b.get("name").and_then(|v| v.as_str()).unwrap_or("");
-        let cur = b.get("current").and_then(serde_json::Value::as_bool).unwrap_or(false);
+        let cur = b
+            .get("current")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
         if cur {
             out.push_str(&format!("- **{name}** ← current\n"));
         } else {

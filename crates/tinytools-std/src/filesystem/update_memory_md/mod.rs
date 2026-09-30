@@ -67,11 +67,12 @@ async fn acquire_cross_process_write_lock(workspace_dir: &Path) -> anyhow::Resul
         // workspace, bypassing the symlink hardening applied to MEMORY.md /
         // SKILL.md. If it exists it must be a regular file.
         if let Ok(meta) = std::fs::symlink_metadata(&lock_path)
-            && meta.file_type().is_symlink() {
-                return Err(anyhow::anyhow!(
-                    "workspace lock file {lock_path:?} is a symlink; refusing to follow it"
-                ));
-            }
+            && meta.file_type().is_symlink()
+        {
+            return Err(anyhow::anyhow!(
+                "workspace lock file {lock_path:?} is a symlink; refusing to follow it"
+            ));
+        }
         let mut opts = std::fs::OpenOptions::new();
         opts.create(true).write(true).truncate(false);
         #[cfg(unix)]
