@@ -433,6 +433,42 @@ fn a_member_property_named_action_cannot_replace_the_discriminator() {
 }
 
 #[test]
+fn member_definitions_are_preserved_and_namespaced() {
+    let first = stub(
+        "first",
+        json!({"type":"object", "properties":{"options":{"$ref":"#/$defs/Options"}}, "$defs":{"Options":{"type":"string"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let second = stub(
+        "second",
+        json!({"type":"object", "properties":{"options":{"$ref":"#/$defs/Options"}}, "$defs":{"Options":{"type":"integer"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let merged = merge_action_schemas(&[
+        CollapsedAction {
+            action: "first",
+            tool: &first,
+        },
+        CollapsedAction {
+            action: "second",
+            tool: &second,
+        },
+    ]);
+    assert_eq!(
+        merged["properties"]["options"]["anyOf"][0]["$ref"],
+        "#/$defs/first_Options"
+    );
+    assert_eq!(
+        merged["properties"]["options"]["anyOf"][1]["$ref"],
+        "#/$defs/second_Options"
+    );
+    assert_eq!(merged["$defs"]["first_Options"]["type"], "string");
+    assert_eq!(merged["$defs"]["second_Options"]["type"], "integer");
+}
+
+#[test]
 fn validation_accepts_a_well_formed_family() {
     let a = stub("a", json!({}), PermissionLevel::ReadOnly, false);
     let b = stub("b", json!({}), PermissionLevel::Write, false);

@@ -129,7 +129,10 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
             let known = definitions.entry(name.clone()).or_default();
             let mut property = spec.clone();
             rewrite_local_refs(&mut property, entry.action);
-            if !known.iter().any(|existing| same_definition(existing, &property)) {
+            if !known
+                .iter()
+                .any(|existing| same_definition(existing, &property))
+            {
                 known.push(property);
             }
         }
