@@ -137,11 +137,13 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
                 }
             }
         }
-        if let Some(defs) = schema.get("$defs").and_then(Value::as_object) {
-            for (name, definition) in defs {
-                let mut definition = definition.clone();
-                rewrite_local_refs(&mut definition, entry.action);
-                merged_defs.insert(namespace_definition(entry.action, name), definition);
+        for defs_key in ["$defs", "definitions"] {
+            if let Some(defs) = schema.get(defs_key).and_then(Value::as_object) {
+                for (name, definition) in defs {
+                    let mut definition = definition.clone();
+                    rewrite_local_refs(&mut definition, entry.action);
+                    merged_defs.insert(namespace_definition(entry.action, name), definition);
+                }
             }
         }
     }
@@ -248,7 +250,9 @@ fn rewrite_local_refs(value: &mut Value, action: &str) {
     match value {
         Value::Object(object) => {
             if let Some(Value::String(reference)) = object.get_mut("$ref")
-                && let Some(pointer) = reference.strip_prefix("#/$defs/")
+                && let Some(pointer) = reference
+                    .strip_prefix("#/$defs/")
+                    .or_else(|| reference.strip_prefix("#/definitions/"))
                 && let (token, suffix) = pointer.split_once('/').unwrap_or((pointer, ""))
                 && let Some(name) = decode_pointer_token(token)
             {
@@ -284,6 +288,7 @@ fn rewrite_local_refs(value: &mut Value, action: &str) {
                 "then",
                 "else",
                 "unevaluatedItems",
+                "prefixItems",
                 "contentSchema",
             ] {
                 if let Some(schema) = object.get_mut(key) {

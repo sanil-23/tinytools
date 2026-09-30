@@ -493,6 +493,47 @@ fn nested_definition_refs_keep_their_pointer_suffix() {
 }
 
 #[test]
+fn draft_07_definitions_are_namespaced_and_rewritten() {
+    let tool = stub(
+        "read",
+        json!({"properties":{"options":{"$ref":"#/definitions/Options"}}, "definitions":{"Options":{"type":"string"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let actions = vec![CollapsedAction {
+        action: "read",
+        tool: &tool,
+    }];
+    let merged = merge_action_schemas(&actions);
+    let definition = namespace_definition("read", "Options");
+    assert_eq!(
+        merged["properties"]["options"]["$ref"],
+        format!("#/$defs/{definition}")
+    );
+    assert_eq!(merged["$defs"][definition]["type"], "string");
+}
+
+#[test]
+fn refs_inside_prefix_items_are_rewritten() {
+    let tool = stub(
+        "read",
+        json!({"properties":{"tuple":{"prefixItems":[{"$ref":"#/$defs/Item"}]}}, "$defs":{"Item":{"type":"string"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let actions = vec![CollapsedAction {
+        action: "read",
+        tool: &tool,
+    }];
+    let merged = merge_action_schemas(&actions);
+    let definition = namespace_definition("read", "Item");
+    assert_eq!(
+        merged["properties"]["tuple"]["prefixItems"][0]["$ref"],
+        format!("#/$defs/{definition}")
+    );
+}
+
+#[test]
 fn member_definition_namespaces_cannot_collide() {
     let read_file = stub(
         "read_file",
