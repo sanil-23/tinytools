@@ -225,3 +225,6 @@ impl FileWriteTool {
     }
 }
 
+
+#[cfg(test)]
+mod test;

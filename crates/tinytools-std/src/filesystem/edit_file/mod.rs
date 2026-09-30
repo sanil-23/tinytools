@@ -232,3 +232,6 @@ impl EditFileTool {
     }
 }
 
+
+#[cfg(test)]
+mod test;

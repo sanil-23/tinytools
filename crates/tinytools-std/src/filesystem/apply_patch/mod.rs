@@ -436,3 +436,6 @@ struct FileBuffer {
     edit_count: usize,
 }
 
+
+#[cfg(test)]
+mod test;

@@ -5,10 +5,10 @@ use std::sync::Arc;
 use tinytools::ToolRunContext;
 use tinytools::{Tool, ToolCallOptions, ToolResult};
 
-use super::git_operations_config::{
+use self::config::{
     disallowed_config_refusal, first_disallowed_repo_config_key, hardened_git,
 };
-use super::git_operations_render::{
+use self::render::{
     render_branch_markdown, render_log_markdown, render_status_markdown,
 };
 
@@ -636,9 +636,6 @@ impl GitOperationsTool {
 }
 
 #[cfg(test)]
-#[path = "git_operations_tests.rs"]
-mod tests;
-
+mod config_test;
 #[cfg(test)]
-#[path = "git_operations_config_tests.rs"]
-mod config_tests;
+mod test;

@@ -131,3 +131,6 @@ impl Tool for ReadDiffTool {
     }
 }
 
+
+#[cfg(test)]
+mod test;

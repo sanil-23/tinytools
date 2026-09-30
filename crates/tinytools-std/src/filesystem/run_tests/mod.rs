@@ -192,3 +192,6 @@ impl Tool for RunTestsTool {
         }
     }
 }
+
+#[cfg(test)]
+mod test;
