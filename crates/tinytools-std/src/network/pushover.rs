@@ -156,7 +156,7 @@ impl Tool for PushoverTool {
             Some(value) => {
                 return Ok(ToolResult::error(format!(
                     "Invalid 'priority': {value}. Expected integer in range -2..=2"
-                )))
+                )));
             }
             None => None,
         };

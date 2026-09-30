@@ -1,4 +1,4 @@
-use super::gate::{host_of, HttpLimits, NetGate};
+use super::gate::{HttpLimits, NetGate, host_of};
 use async_trait::async_trait;
 use serde_json::json;
 use std::sync::Arc;
@@ -136,7 +136,9 @@ impl HttpRequestTool {
             "PATCH" => Ok(reqwest::Method::PATCH),
             "HEAD" => Ok(reqwest::Method::HEAD),
             "OPTIONS" => Ok(reqwest::Method::OPTIONS),
-            _ => anyhow::bail!("Unsupported HTTP method: {method}. Supported: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS"),
+            _ => anyhow::bail!(
+                "Unsupported HTTP method: {method}. Supported: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS"
+            ),
         }
     }
 
@@ -209,7 +211,9 @@ impl HttpRequestTool {
         headers: Vec<(String, String)>,
         body: Option<&str>,
     ) -> Result<reqwest::Response, String> {
-        log::debug!("[tool.http_request] 402 received with PAYMENT-REQUIRED, attempting x402 payment for {url}");
+        log::debug!(
+            "[tool.http_request] 402 received with PAYMENT-REQUIRED, attempting x402 payment for {url}"
+        );
 
         let attempt = hook.pay(url, initial_response.headers()).await?;
 
@@ -380,7 +384,8 @@ impl Tool for HttpRequestTool {
                 .as_object()
                 .map(|h| !h.is_empty())
                 .unwrap_or(false);
-            self.gate.disclose(&host_of(&url), body.is_some(), has_headers);
+            self.gate
+                .disclose(&host_of(&url), body.is_some(), has_headers);
         }
 
         let method = match self.validate_method(method_str) {

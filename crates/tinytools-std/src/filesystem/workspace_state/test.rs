@@ -250,3 +250,40 @@ async fn lists_non_hidden_files_in_tree() {
     assert!(out.contains("readme.txt"));
     assert!(!out.contains(".hidden"));
 }
+
+/// The hardening now comes from `git_operations`' policy, which is stricter
+/// than the copy this tool used to carry: `core.worktree` redirects the tree
+/// git operates on and is not on the allowlist.
+#[cfg(unix)]
+#[tokio::test]
+async fn core_worktree_is_refused_like_any_other_unrecognised_key() {
+    let tmp = TempDir::new().unwrap();
+    git_init(&tmp);
+    set_config(&tmp, "core.worktree", "/tmp");
+
+    let out = make_tool(&tmp).execute(json!({})).await.unwrap().output();
+
+    assert!(out.contains("core.worktree"), "got: {out}");
+    assert!(out.contains("not on the allowlist"), "got: {out}");
+}
+
+/// `git config --local` never shows a worktree-scoped key; the shared check
+/// reads the merged view, so a hook path set there is still caught.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_worktree_scoped_command_key_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    git_init(&tmp);
+    set_config(&tmp, "extensions.worktreeConfig", "true");
+    let ok = std::process::Command::new("git")
+        .args(["config", "--worktree", "core.fsmonitor", "/bin/true"])
+        .current_dir(tmp.path())
+        .status()
+        .unwrap()
+        .success();
+    assert!(ok, "failed to set a worktree-scoped key");
+
+    let out = make_tool(&tmp).execute(json!({})).await.unwrap().output();
+
+    assert!(out.contains("fsmonitor"), "got: {out}");
+}

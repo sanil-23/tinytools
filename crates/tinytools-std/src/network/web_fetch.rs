@@ -6,7 +6,7 @@
 //! the agent reaches for when researching: returns the response body
 //! as text, capped, with a tiny preamble (status + final URL).
 
-use super::gate::{host_of, HttpLimits, NetGate};
+use super::gate::{HttpLimits, NetGate, host_of};
 use crate::url_guard::{normalize_allowed_domains, validate_url_with_dns_check};
 use async_trait::async_trait;
 use serde_json::json;
@@ -268,7 +268,8 @@ impl Tool for WebFetchTool {
         // summarizer behind it) is how one research turn came to cost
         // 1,083,069 input tokens. The host's `HtmlExtractor` owns
         // content transforms.
-        let converted = !raw_requested && is_html(self.html.as_ref(), &body, content_type.as_deref());
+        let converted =
+            !raw_requested && is_html(self.html.as_ref(), &body, content_type.as_deref());
         let content = if converted {
             self.html.to_markdown(&body)
         } else {

@@ -6,7 +6,8 @@
 //! `http_request.allowed_domains` so there is one allowlist to reason
 //! about.
 
-use super::gate::{host_of, NetGate};
+use super::gate::{NetGate, host_of};
+use crate::url_guard::{normalize_allowed_domains, validate_url_with_dns_check};
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use sha2::{Digest, Sha256};
@@ -14,7 +15,6 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tinytools::{PermissionLevel, Tool, ToolResult};
-use crate::url_guard::{normalize_allowed_domains, validate_url_with_dns_check};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 

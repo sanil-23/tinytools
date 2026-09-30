@@ -1,5 +1,5 @@
 use super::*;
-use crate::network::test_support::{AutonomyLevel, TestNetGate, DEFAULT_LIMITS};
+use crate::network::test_support::{AutonomyLevel, DEFAULT_LIMITS, TestNetGate};
 
 fn test_tool(allowed_domains: Vec<&str>) -> HttpRequestTool {
     let security = TestNetGate::supervised();
@@ -18,7 +18,13 @@ fn zero_limits_fall_back_to_defaults() {
     // every request and a 0-byte cap truncates every body. The constructor
     // must coerce both to the module defaults — never let 0 reach reqwest.
     let security = TestNetGate::supervised();
-    let tool = HttpRequestTool::new(security, vec!["example.com".to_string()], 0, 0, DEFAULT_LIMITS);
+    let tool = HttpRequestTool::new(
+        security,
+        vec!["example.com".to_string()],
+        0,
+        0,
+        DEFAULT_LIMITS,
+    );
     let defaults = DEFAULT_LIMITS;
     assert_eq!(tool.max_response_size, defaults.max_response_size);
     assert_eq!(tool.timeout_secs, defaults.timeout_secs);
@@ -29,7 +35,13 @@ fn zero_limits_fall_back_to_defaults() {
 #[test]
 fn nonzero_limits_are_preserved() {
     let security = TestNetGate::supervised();
-    let tool = HttpRequestTool::new(security, vec!["example.com".to_string()], 2048, 12, DEFAULT_LIMITS);
+    let tool = HttpRequestTool::new(
+        security,
+        vec!["example.com".to_string()],
+        2048,
+        12,
+        DEFAULT_LIMITS,
+    );
     assert_eq!(tool.max_response_size, 2048);
     assert_eq!(tool.timeout_secs, 12);
 }
@@ -67,7 +79,13 @@ async fn validate_url_rejects_disallowed_domain() {
 #[tokio::test]
 async fn execute_blocks_readonly_mode() {
     let security = TestNetGate::with(AutonomyLevel::ReadOnly, 100);
-    let tool = HttpRequestTool::new(security, vec!["example.com".into()], 1_000_000, 30, DEFAULT_LIMITS);
+    let tool = HttpRequestTool::new(
+        security,
+        vec!["example.com".into()],
+        1_000_000,
+        30,
+        DEFAULT_LIMITS,
+    );
     let result = tool
         .execute(json!({"url": "https://example.com"}))
         .await
@@ -79,7 +97,13 @@ async fn execute_blocks_readonly_mode() {
 #[tokio::test]
 async fn execute_blocks_when_rate_limited() {
     let security = TestNetGate::with(AutonomyLevel::Supervised, 0);
-    let tool = HttpRequestTool::new(security, vec!["example.com".into()], 1_000_000, 30, DEFAULT_LIMITS);
+    let tool = HttpRequestTool::new(
+        security,
+        vec!["example.com".into()],
+        1_000_000,
+        30,
+        DEFAULT_LIMITS,
+    );
     let result = tool
         .execute(json!({"url": "https://example.com"}))
         .await
@@ -148,15 +172,21 @@ fn parse_headers_preserves_original_values() {
     });
     let parsed = tool.parse_headers(&headers);
     assert_eq!(parsed.len(), 3);
-    assert!(parsed
-        .iter()
-        .any(|(k, v)| k == "Authorization" && v == "Bearer secret"));
-    assert!(parsed
-        .iter()
-        .any(|(k, v)| k == "X-API-Key" && v == "my-key"));
-    assert!(parsed
-        .iter()
-        .any(|(k, v)| k == "Content-Type" && v == "application/json"));
+    assert!(
+        parsed
+            .iter()
+            .any(|(k, v)| k == "Authorization" && v == "Bearer secret")
+    );
+    assert!(
+        parsed
+            .iter()
+            .any(|(k, v)| k == "X-API-Key" && v == "my-key")
+    );
+    assert!(
+        parsed
+            .iter()
+            .any(|(k, v)| k == "Content-Type" && v == "application/json")
+    );
 }
 
 #[test]
@@ -169,18 +199,26 @@ fn redact_headers_for_display_redacts_sensitive() {
     ];
     let redacted = HttpRequestTool::redact_headers_for_display(&headers);
     assert_eq!(redacted.len(), 4);
-    assert!(redacted
-        .iter()
-        .any(|(k, v)| k == "Authorization" && v == "***REDACTED***"));
-    assert!(redacted
-        .iter()
-        .any(|(k, v)| k == "X-API-Key" && v == "***REDACTED***"));
-    assert!(redacted
-        .iter()
-        .any(|(k, v)| k == "X-Secret-Token" && v == "***REDACTED***"));
-    assert!(redacted
-        .iter()
-        .any(|(k, v)| k == "Content-Type" && v == "application/json"));
+    assert!(
+        redacted
+            .iter()
+            .any(|(k, v)| k == "Authorization" && v == "***REDACTED***")
+    );
+    assert!(
+        redacted
+            .iter()
+            .any(|(k, v)| k == "X-API-Key" && v == "***REDACTED***")
+    );
+    assert!(
+        redacted
+            .iter()
+            .any(|(k, v)| k == "X-Secret-Token" && v == "***REDACTED***")
+    );
+    assert!(
+        redacted
+            .iter()
+            .any(|(k, v)| k == "Content-Type" && v == "application/json")
+    );
 }
 
 #[test]
@@ -211,7 +249,13 @@ fn supervised_http_request_is_external_effect_for_approval_gate() {
 #[test]
 fn readonly_http_request_is_not_external_effect_because_execute_blocks() {
     let security = TestNetGate::with(AutonomyLevel::ReadOnly, 100);
-    let tool = HttpRequestTool::new(security, vec!["example.com".into()], 1_000_000, 30, DEFAULT_LIMITS);
+    let tool = HttpRequestTool::new(
+        security,
+        vec!["example.com".into()],
+        1_000_000,
+        30,
+        DEFAULT_LIMITS,
+    );
     assert!(!tool.external_effect_with_args(&json!({
         "url": "https://example.com/api",
         "method": "GET"
@@ -258,7 +302,10 @@ async fn a_bare_request_discloses_neither_body_nor_headers() {
         .execute(json!({"url": "https://8.8.8.8/x", "method": "TRACE"}))
         .await
         .unwrap();
-    assert_eq!(gate.disclosed(), vec![("8.8.8.8".to_string(), false, false)]);
+    assert_eq!(
+        gate.disclosed(),
+        vec![("8.8.8.8".to_string(), false, false)]
+    );
 }
 
 #[test]
@@ -272,7 +319,9 @@ fn the_host_of_an_unparseable_url_is_unknown() {
 
 /// Serves one canned HTTP response per accepted connection, in order, and
 /// records each request's raw head. Returns the bound address.
-async fn serve(responses: Vec<String>) -> (std::net::SocketAddr, Arc<std::sync::Mutex<Vec<String>>>) {
+async fn serve(
+    responses: Vec<String>,
+) -> (std::net::SocketAddr, Arc<std::sync::Mutex<Vec<String>>>) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -318,8 +367,7 @@ impl PaymentHook for RecordingHook {
     }
 }
 
-const PAYMENT_REQUIRED: &str =
-    "HTTP/1.1 402 Payment Required\r\nPAYMENT-REQUIRED: abc\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+const PAYMENT_REQUIRED: &str = "HTTP/1.1 402 Payment Required\r\nPAYMENT-REQUIRED: abc\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
 
 // Loopback is refused by the SSRF guard, so these drive the private request
 // path directly rather than `execute`.
@@ -335,21 +383,41 @@ async fn a_402_is_retried_once_with_the_hooks_headers_and_settled() {
     let tool = test_tool(vec![]);
     let url = format!("http://{addr}/paid");
     let first = tool
-        .execute_request(&url, reqwest::Method::GET, vec![("X-A".into(), "1".into())], None)
+        .execute_request(
+            &url,
+            reqwest::Method::GET,
+            vec![("X-A".into(), "1".into())],
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(first.status(), reqwest::StatusCode::PAYMENT_REQUIRED);
 
     let paid = tool
-        .handle_payment_required(&hook, first, &url, reqwest::Method::GET, vec![("X-A".into(), "1".into())], None)
+        .handle_payment_required(
+            &hook,
+            first,
+            &url,
+            reqwest::Method::GET,
+            vec![("X-A".into(), "1".into())],
+            None,
+        )
         .await
         .unwrap();
     assert!(paid.status().is_success());
 
     let requests = seen.lock().unwrap().clone();
     assert_eq!(requests.len(), 2);
-    assert!(!requests[0].to_ascii_lowercase().contains("payment-signature"));
-    assert!(requests[1].to_ascii_lowercase().contains("payment-signature: sig"));
+    assert!(
+        !requests[0]
+            .to_ascii_lowercase()
+            .contains("payment-signature")
+    );
+    assert!(
+        requests[1]
+            .to_ascii_lowercase()
+            .contains("payment-signature: sig")
+    );
     assert!(requests[1].to_ascii_lowercase().contains("x-a: 1"));
     assert_eq!(
         *settled.lock().unwrap(),

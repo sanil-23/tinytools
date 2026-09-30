@@ -1,12 +1,24 @@
 use super::*;
-use crate::network::test_support::{TestHtml, TestNetGate, DEFAULT_LIMITS};
+use crate::network::test_support::{DEFAULT_LIMITS, TestHtml, TestNetGate};
 
 fn test_security() -> Arc<TestNetGate> {
     TestNetGate::supervised()
 }
 
-fn fetch(gate: Arc<TestNetGate>, allowed: Vec<String>, max: Option<usize>, timeout: Option<u64>) -> WebFetchTool {
-    WebFetchTool::new(gate, allowed, max, timeout, DEFAULT_LIMITS, Arc::new(TestHtml))
+fn fetch(
+    gate: Arc<TestNetGate>,
+    allowed: Vec<String>,
+    max: Option<usize>,
+    timeout: Option<u64>,
+) -> WebFetchTool {
+    WebFetchTool::new(
+        gate,
+        allowed,
+        max,
+        timeout,
+        DEFAULT_LIMITS,
+        Arc::new(TestHtml),
+    )
 }
 
 #[test]
@@ -15,25 +27,28 @@ fn web_fetch_name_and_schema() {
     assert_eq!(tool.name(), "web_fetch");
     let schema = tool.parameters_schema();
     assert!(schema["properties"]["url"].is_object());
-    assert!(schema["required"]
-        .as_array()
-        .unwrap()
-        .contains(&json!("url")));
+    assert!(
+        schema["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("url"))
+    );
 }
 
 #[test]
 fn a_host_can_opt_the_schema_into_extra_optional_arguments() {
-    let tool = fetch(test_security(), vec!["example.com".into()], None, None)
-        .with_schema_property(
-            "summary_focus",
-            json!({"type": "string", "description": "What you need."}),
-        );
+    let tool = fetch(test_security(), vec!["example.com".into()], None, None).with_schema_property(
+        "summary_focus",
+        json!({"type": "string", "description": "What you need."}),
+    );
     let schema = tool.parameters_schema();
     assert_eq!(schema["properties"]["summary_focus"]["type"], "string");
-    assert!(!schema["required"]
-        .as_array()
-        .unwrap()
-        .contains(&json!("summary_focus")));
+    assert!(
+        !schema["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("summary_focus"))
+    );
     // Without the opt-in the schema is exactly the base one.
     let plain = fetch(test_security(), vec![], None, None).parameters_schema();
     assert!(plain["properties"].get("summary_focus").is_none());
@@ -45,7 +60,12 @@ fn zero_and_none_limits_fall_back_to_defaults() {
     // 0-byte cap (empty bodies) and a 0-second timeout (instant failure).
     // Both `None` and `Some(0)` must coerce to the shared schema defaults.
     let defaults = DEFAULT_LIMITS;
-    let from_zero = fetch(test_security(), vec!["example.com".into()], Some(0), Some(0));
+    let from_zero = fetch(
+        test_security(),
+        vec!["example.com".into()],
+        Some(0),
+        Some(0),
+    );
     assert_eq!(from_zero.max_bytes, defaults.max_response_size);
     assert_eq!(from_zero.timeout_secs, defaults.timeout_secs);
     assert_ne!(from_zero.timeout_secs, 0);
@@ -58,7 +78,12 @@ fn zero_and_none_limits_fall_back_to_defaults() {
 
 #[test]
 fn nonzero_limits_are_preserved() {
-    let tool = fetch(test_security(), vec!["example.com".into()], Some(4096), Some(15));
+    let tool = fetch(
+        test_security(),
+        vec!["example.com".into()],
+        Some(4096),
+        Some(15),
+    );
     assert_eq!(tool.max_bytes, 4096);
     assert_eq!(tool.timeout_secs, 15);
 }
@@ -85,7 +110,7 @@ async fn web_fetch_rejects_invalid_url() {
 async fn web_fetch_blocked_under_local_only_privacy_mode() {
     // Privacy epic S7 (#4441): under LocalOnly the fetch is refused with a
     // `[policy-blocked]` result before any URL validation / network.
-        let tool = fetch(
+    let tool = fetch(
         TestNetGate::local_only(),
         vec!["example.com".into()],
         None,
@@ -151,10 +176,7 @@ fn a_missing_content_type_falls_back_to_content_detection() {
 
 #[test]
 fn an_empty_content_type_does_not_veto_detection() {
-    assert!(html(
-        "<!DOCTYPE html><html><body>x</body></html>",
-        Some("")
-    ));
+    assert!(html("<!DOCTYPE html><html><body>x</body></html>", Some("")));
 }
 
 #[test]
