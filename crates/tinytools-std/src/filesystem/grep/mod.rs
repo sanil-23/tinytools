@@ -135,7 +135,7 @@ impl GrepTool {
             Err(msg) => return Ok(ToolResult::error(msg)),
         };
 
-        let workspace = path_policy.action_dir.clone();
+        let workspace = path_policy.action_dir().to_path_buf();
         let result = tokio::task::spawn_blocking(move || {
             scan_for_matches(&resolved_root, &workspace, &regex, max_matches)
         })

@@ -168,7 +168,7 @@ impl ApplyPatchTool {
             // does not exist yet. Resolved the same way every other edit is —
             // joined onto `action_dir` — so "exists" means the same thing here
             // as it does in the apply loop below.
-            let exists = path_policy.action_dir.join(path).exists()
+            let exists = path_policy.action_dir().join(path).exists()
                 || (std::path::Path::new(path).is_absolute()
                     && std::path::Path::new(path).exists());
             let create = old_string.is_empty();
@@ -204,7 +204,7 @@ impl ApplyPatchTool {
         };
         let mut _path_guards = Vec::new();
         for p in &unique_paths {
-            let full = path_policy.action_dir.join(p);
+            let full = path_policy.action_dir().join(p);
             if let Ok(resolved) = tokio::fs::canonicalize(&full).await {
                 if let Some(guard) = file_state::acquire_path_lock(&resolved).await {
                     _path_guards.push(guard);
@@ -215,7 +215,7 @@ impl ApplyPatchTool {
         // File-state guard: reject edits based on stale or partial reads.
         if let Some(agent_id) = file_state::current_file_state_agent_id() {
             for p in &unique_paths {
-                let full = path_policy.action_dir.join(p);
+                let full = path_policy.action_dir().join(p);
                 if let Ok(resolved) = tokio::fs::canonicalize(&full).await {
                     if let Some(msg) = file_state::check_stale_read(&agent_id, &resolved) {
                         tracing::debug!(
@@ -242,7 +242,7 @@ impl ApplyPatchTool {
         let mut buffers: HashMap<String, FileBuffer> = HashMap::new();
         for edit in &parsed {
             if !buffers.contains_key(&edit.path) {
-                let full = path_policy.action_dir.join(&edit.path);
+                let full = path_policy.action_dir().join(&edit.path);
 
                 // Symlink check must happen on the *unresolved* path —
                 // canonicalize resolves symlinks, so a check after that

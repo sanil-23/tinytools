@@ -142,7 +142,7 @@ impl EditFileTool {
         }
 
         let path_policy = gate_for_context(&self.gate, context, "edit");
-        let full = path_policy.action_dir.join(path);
+        let full = path_policy.action_dir().join(path);
 
         // Symlink check must happen on the *unresolved* path —
         // `canonicalize` resolves symlinks, so checking after that point

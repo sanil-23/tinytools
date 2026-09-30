@@ -608,13 +608,10 @@ impl GitOperationsTool {
                 ));
             }
 
-            match self.gate.autonomy {
-                AutonomyLevel::ReadOnly => {
-                    return Ok(ToolResult::error(
-                        "[policy-blocked] Action blocked: read-only mode",
-                    ));
-                }
-                AutonomyLevel::Supervised | AutonomyLevel::Full => {}
+            if self.gate.is_read_only() {
+                return Ok(ToolResult::error(
+                    "[policy-blocked] Action blocked: read-only mode",
+                ));
             }
         }
 

@@ -182,7 +182,7 @@ impl GlobTool {
         log::debug!(
             "[tools:glob] resolved search root: '{}' (action_dir='{}')",
             base.display(),
-            path_policy.action_dir.display()
+            path_policy.action_dir().display()
         );
 
         // Canonical action sandbox, used to decide whether a hit is rendered
@@ -192,18 +192,18 @@ impl GlobTool {
         // fallback fires the two roots become asymmetric and strip_prefix below
         // may miss for an in-sandbox hit, rendering it absolute. Harmless: the
         // absolute path is still readable and the per-hit filter still applies.
-        let action_root = tokio::fs::canonicalize(&path_policy.action_dir)
+        let action_root = tokio::fs::canonicalize(path_policy.action_dir())
             .await
             .unwrap_or_else(|e| {
                 log::trace!(
                     "[tools:glob] action_dir canonicalize fallback: path='{}' error={e}",
-                    path_policy.action_dir.display()
+                    path_policy.action_dir().display()
                 );
-                path_policy.action_dir.clone()
+                path_policy.action_dir().to_path_buf()
             });
 
         let result = tokio::task::spawn_blocking(move || {
-            collect_matches(&base, &action_root, &path_policy, &pattern, max_results)
+            collect_matches(&base, &action_root, path_policy.as_ref(), &pattern, max_results)
         })
         .await
         .map_err(|e| anyhow::anyhow!("scan task failed: {e}"))?;
@@ -248,7 +248,7 @@ impl GlobTool {
 fn collect_matches(
     base: &Path,
     action_root: &Path,
-    security: &SecurityPolicy,
+    gate: &dyn FsGate,
     pattern: &Pattern,
     max_results: usize,
 ) -> (Vec<String>, bool) {
@@ -282,7 +282,7 @@ fn collect_matches(
         };
 
         // Fail-closed: only surface paths the readers would also accept.
-        if !security.is_path_string_allowed(&display) {
+        if !gate.is_path_string_allowed(&display) {
             log::trace!("[tools:glob] path filtered by policy: '{display}'");
             continue;
         }
