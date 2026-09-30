@@ -405,6 +405,5 @@ async fn read_or_empty(path: &std::path::Path) -> anyhow::Result<String> {
     }
 }
 
-
 #[cfg(test)]
 mod test;

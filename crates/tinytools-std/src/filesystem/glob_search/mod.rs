@@ -204,7 +204,13 @@ impl GlobTool {
             });
 
         let result = tokio::task::spawn_blocking(move || {
-            collect_matches(&base, &action_root, path_policy.as_ref(), &pattern, max_results)
+            collect_matches(
+                &base,
+                &action_root,
+                path_policy.as_ref(),
+                &pattern,
+                max_results,
+            )
         })
         .await
         .map_err(|e| anyhow::anyhow!("scan task failed: {e}"))?;
@@ -309,7 +315,6 @@ fn is_skipped(name: &str) -> bool {
         ".git" | "node_modules" | "target" | ".next" | "dist" | "build" | ".cache"
     )
 }
-
 
 #[cfg(test)]
 mod test;

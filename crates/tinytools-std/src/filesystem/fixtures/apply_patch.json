@@ -1,0 +1,42 @@
+{
+  "description": "Apply a batch of exact-string edits across one or more files atomically. All edits are validated before any are written; validation failure rolls back the whole batch. Each edit is `{path, old_string, new_string, replace_all?}`. To CREATE a new file, pass an empty `old_string` with the full contents as `new_string`; the path must not already exist.",
+  "exposure": "Direct",
+  "name": "apply_patch",
+  "permission_level": "Write",
+  "schema": {
+    "properties": {
+      "edits": {
+        "description": "Ordered list of edits.",
+        "items": {
+          "properties": {
+            "new_string": {
+              "type": "string"
+            },
+            "old_string": {
+              "description": "Exact text to replace. Empty means CREATE: the path must not exist and `new_string` becomes the whole file.",
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "replace_all": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "path",
+            "old_string",
+            "new_string"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "edits"
+    ],
+    "type": "object"
+  }
+}

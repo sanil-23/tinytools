@@ -1,5 +1,5 @@
-use crate::file_state;
 use super::gate::{FsGate, gate_for_context};
+use crate::file_state;
 use async_trait::async_trait;
 use serde_json::json;
 use std::sync::Arc;
@@ -151,7 +151,7 @@ impl FileReadTool {
                         None => {
                             return Ok(ToolResult::error(format!(
                                 "offset must be a non-negative integer byte offset, got {value}"
-                            )))
+                            )));
                         }
                     },
                 };
@@ -223,7 +223,6 @@ fn page_contents(contents: &str, path: &str, offset: usize) -> String {
     page.push_str(&marker);
     page
 }
-
 
 #[cfg(test)]
 mod test;

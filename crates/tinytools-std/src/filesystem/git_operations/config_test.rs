@@ -10,7 +10,7 @@
 //! the fixtures in the sibling test module stay reachable.
 
 use super::config::{
-    normalise_config_key, shell_git_env, NEUTRALISED_CONFIG, SHELL_NEUTRALISED_CONFIG,
+    NEUTRALISED_CONFIG, SHELL_NEUTRALISED_CONFIG, normalise_config_key, shell_git_env,
 };
 // The fixtures stay in `git_operations_tests.rs` and are shared rather than
 // duplicated: both modules are children of `git_operations`, so `pub(super)`

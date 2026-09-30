@@ -151,6 +151,5 @@ impl Tool for RunLinterTool {
     }
 }
 
-
 #[cfg(test)]
 mod test;

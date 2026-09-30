@@ -40,3 +40,6 @@ pub use read_diff::ReadDiffTool;
 pub use run_linter::RunLinterTool;
 pub use run_tests::RunTestsTool;
 pub use update_memory_md::UpdateMemoryMdTool;
+
+#[cfg(test)]
+mod contract_test;

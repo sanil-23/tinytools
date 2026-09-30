@@ -5,7 +5,12 @@
 //! paths must resolve into. It is *not* a copy of any host's policy; the
 //! host's own semantics are tested in the host, through its adapter.
 
-#![allow(clippy::expect_used, clippy::unwrap_used, missing_docs, unreachable_pub)]
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    missing_docs,
+    unreachable_pub
+)]
 
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -201,7 +206,9 @@ pub struct WorkspaceContext(pub tinytools::WorkspaceDescriptor);
 impl WorkspaceContext {
     /// Context whose workspace is rooted at `root`.
     pub fn at(root: &Path) -> Self {
-        Self(tinytools::WorkspaceDescriptor::new(root.to_path_buf()).with_policy_id("test-worktree"))
+        Self(
+            tinytools::WorkspaceDescriptor::new(root.to_path_buf()).with_policy_id("test-worktree"),
+        )
     }
 }
 

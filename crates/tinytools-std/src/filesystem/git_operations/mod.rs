@@ -10,12 +10,8 @@ mod config;
 mod render;
 
 pub use self::config::shell_git_env;
-use self::config::{
-    disallowed_config_refusal, first_disallowed_repo_config_key, hardened_git,
-};
-use self::render::{
-    render_branch_markdown, render_log_markdown, render_status_markdown,
-};
+use self::config::{disallowed_config_refusal, first_disallowed_repo_config_key, hardened_git};
+use self::render::{render_branch_markdown, render_log_markdown, render_status_markdown};
 
 /// Git operations tool for structured repository management.
 /// Provides safe, parsed git operations with JSON output.
@@ -26,10 +22,7 @@ pub struct GitOperationsTool {
 
 impl GitOperationsTool {
     pub fn new(gate: Arc<dyn FsGate>, action_dir: PathBuf) -> Self {
-        Self {
-            gate,
-            action_dir,
-        }
+        Self { gate, action_dir }
     }
 
     /// Resolve the working directory for git operations.
@@ -518,8 +511,7 @@ impl Tool for GitOperationsTool {
     /// `execute` via the existing `can_act()` / autonomy check.
     fn external_effect_with_args(&self, args: &serde_json::Value) -> bool {
         let operation = args.get("operation").and_then(|v| v.as_str()).unwrap_or("");
-        self.requires_write_access(operation)
-            && self.gate.write_needs_approval()
+        self.requires_write_access(operation) && self.gate.write_needs_approval()
     }
 
     async fn execute_with_options(

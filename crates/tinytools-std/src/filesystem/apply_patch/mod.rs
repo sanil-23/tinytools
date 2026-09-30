@@ -14,8 +14,8 @@
 //! containing `x`). An empty `old_string` against a file that *does* exist is
 //! still an error — "replace nothing" is ambiguous, not a create.
 
-use crate::file_state;
 use super::gate::{FsGate, gate_for_context};
+use crate::file_state;
 use async_trait::async_trait;
 use serde_json::json;
 use std::collections::HashMap;
@@ -436,7 +436,6 @@ struct FileBuffer {
     contents: String,
     edit_count: usize,
 }
-
 
 #[cfg(test)]
 mod test;

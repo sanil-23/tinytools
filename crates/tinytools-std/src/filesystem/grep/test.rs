@@ -13,10 +13,12 @@ fn grep_name_and_schema() {
     assert_eq!(tool.name(), "grep");
     let schema = tool.parameters_schema();
     assert!(schema["properties"]["pattern"].is_object());
-    assert!(schema["required"]
-        .as_array()
-        .unwrap()
-        .contains(&json!("pattern")));
+    assert!(
+        schema["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("pattern"))
+    );
 }
 
 #[tokio::test]

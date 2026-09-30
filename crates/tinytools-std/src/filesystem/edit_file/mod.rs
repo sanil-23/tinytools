@@ -6,8 +6,8 @@
 //! exactly once in the file (so the model can't accidentally edit
 //! every match). Set `replace_all` to override.
 
-use crate::file_state;
 use super::gate::{FsGate, gate_for_context};
+use crate::file_state;
 use async_trait::async_trait;
 use serde_json::json;
 use std::sync::Arc;
@@ -232,7 +232,6 @@ impl EditFileTool {
         }
     }
 }
-
 
 #[cfg(test)]
 mod test;
