@@ -41,6 +41,8 @@ mod text;
 mod update_memory_md;
 
 #[cfg(test)]
+mod gate_test;
+#[cfg(test)]
 mod test_support;
 
 pub use apply_patch::ApplyPatchTool;
