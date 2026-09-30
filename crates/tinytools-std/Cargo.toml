@@ -13,19 +13,31 @@ publish = false
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+# Advisory inter-process `flock` around the MEMORY.md read-modify-write.
+fs2 = "0.4"
+# `glob_search` pattern matching.
+glob = "0.3"
+# `O_NOFOLLOW` when opening the workspace lock file (Unix only).
+libc = "0.2"
 # Structured diagnostics for DNS validation and SSRF refusals.
 log = "0.4"
 # Async path locks must remain non-blocking while callers hold them across I/O.
 parking_lot = "0.12"
+# `grep` pattern compilation.
+regex = { workspace = true }
 # Safe effective-credential executable checks for Unix PATH candidates.
 rustix = { version = "1", default-features = false, features = ["fs"] }
 serde_json = { workspace = true }
 tinytools = { path = "../tinytools", version = "0.5.0" }
-# `spawn_blocking` keeps synchronous system DNS resolution off async executor threads.
-tokio = { version = "1", default-features = false, features = ["rt", "sync"] }
+# `spawn_blocking` keeps synchronous system DNS resolution off async executor threads;
+# `fs`/`process`/`time` serve the filesystem tools.
+tokio = { version = "1", default-features = false, features = ["rt", "sync", "fs", "process", "time"] }
 tracing = { workspace = true }
+# `grep` and `glob_search` directory walks.
+walkdir = "2"
 
 [dev-dependencies]
+tempfile = "3"
 tokio = { workspace = true }
 
 [lints]

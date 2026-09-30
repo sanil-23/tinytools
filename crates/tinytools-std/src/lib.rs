@@ -6,6 +6,8 @@
 //!
 //! - [`file_state`] — cross-agent read/write stamps and per-path locks, so a
 //!   sibling agent's edit is noticed before a stale overwrite.
+//! - [`filesystem`] — file read/write/edit/patch, search, git and check-runner
+//!   tools, gated by a host-implemented [`filesystem::FsGate`].
 //! - [`url_guard`] — URL validation with SSRF checks, plus DNS resolution
 //!   that returns the vetted addresses for the caller to pin its connection to.
 //! - [`detect_tools`] — `PATH` probing and the read-only `detect_tools` tool.
@@ -29,4 +31,5 @@
 
 pub mod detect_tools;
 pub mod file_state;
+pub mod filesystem;
 pub mod url_guard;
