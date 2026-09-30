@@ -218,10 +218,10 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
 fn rewrite_local_refs(value: &mut Value, action: &str) {
     match value {
         Value::Object(object) => {
-            if let Some(Value::String(reference)) = object.get_mut("$ref") {
-                if let Some(name) = reference.strip_prefix("#/$defs/") {
-                    *reference = format!("#/$defs/{action}_{name}");
-                }
+            if let Some(Value::String(reference)) = object.get_mut("$ref")
+                && let Some(name) = reference.strip_prefix("#/$defs/")
+            {
+                *reference = format!("#/$defs/{action}_{name}");
             }
             for child in object.values_mut() {
                 rewrite_local_refs(child, action);
