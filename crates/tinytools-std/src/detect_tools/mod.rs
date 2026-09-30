@@ -48,30 +48,35 @@ pub fn find_on_path(name: &str) -> Option<PathBuf> {
     for dir in std::env::split_paths(&path) {
         for file_name in &file_names {
             let candidate = dir.join(file_name);
-            if candidate.is_file() {
-                // On Unix a plain `is_file()` can match a non-executable file and
-                // falsely report the tool as available; require the exec bit.
-                #[cfg(unix)]
-                {
-                    let is_exec = rustix::fs::accessat(
-                        rustix::fs::CWD,
-                        candidate.as_os_str().as_encoded_bytes(),
-                        rustix::fs::Access::EXEC_OK,
-                        rustix::fs::AtFlags::EACCESS,
-                    )
-                    .is_ok();
-                    if is_exec {
-                        return Some(candidate);
-                    }
-                }
-                #[cfg(not(unix))]
-                {
-                    return Some(candidate);
-                }
+            if is_executable_file(&candidate) {
+                return Some(candidate);
             }
         }
     }
     None
+}
+
+/// Whether `path` names a regular file the current process can execute.
+fn is_executable_file(path: &std::path::Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    // On Unix, checking mode bits alone ignores the current process's
+    // effective credentials and supplementary groups.
+    #[cfg(unix)]
+    {
+        rustix::fs::accessat(
+            rustix::fs::CWD,
+            path.as_os_str().as_encoded_bytes(),
+            rustix::fs::Access::EXEC_OK,
+            rustix::fs::AtFlags::EACCESS,
+        )
+        .is_ok()
+    }
+    #[cfg(not(unix))]
+    {
+        true
+    }
 }
 
 /// The file names to probe in each `PATH` directory for `name`.

@@ -3,6 +3,23 @@
 
 use super::*;
 
+#[cfg(unix)]
+#[test]
+fn executable_lookup_requires_current_process_access() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = std::env::temp_dir().join(format!("tinytools-exec-check-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("candidate");
+    std::fs::write(&file, "binary").unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+    assert!(!is_executable_file(&file));
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o700)).unwrap();
+    assert!(is_executable_file(&file));
+    assert!(!is_executable_file(&dir));
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 #[test]
 fn name_and_permission() {
     let tool = DetectToolsTool::new();
