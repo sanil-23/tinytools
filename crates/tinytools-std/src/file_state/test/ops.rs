@@ -160,7 +160,7 @@ async fn path_lock_serialises_access() {
 }
 
 #[tokio::test]
-async fn global_api_tracks_reads_writes_and_locks() {
+async fn global_api_tracks_reads_writes_and_locks() -> anyhow::Result<()> {
     use crate::file_state::{
         acquire_path_lock, check_partial_read, check_stale_read, init_global, parent_stale_files,
         record_read, record_write, try_global,
@@ -203,6 +203,7 @@ async fn global_api_tracks_reads_writes_and_locks() {
 
     let guard = acquire_path_lock(&path).await;
     assert!(guard.is_some());
+    Ok(())
 }
 
 #[test]

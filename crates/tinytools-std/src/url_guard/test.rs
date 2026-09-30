@@ -19,10 +19,9 @@ impl<T: std::fmt::Debug> Rejection for anyhow::Result<T> {
 }
 
 #[test]
-fn normalize_domain_strips_scheme_path_and_case() -> anyhow::Result<()> {
-    let got = normalize_domain("  HTTPS://Docs.Example.com/path ")?;
-    assert_eq!(got, "docs.example.com");
-    Ok(())
+fn normalize_domain_strips_scheme_path_and_case() {
+    let got = normalize_domain("  HTTPS://Docs.Example.com/path ");
+    assert_eq!(got.as_deref(), Some("docs.example.com"));
 }
 
 #[test]
