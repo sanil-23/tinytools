@@ -11,7 +11,7 @@ fn name_and_permission() {
 
 #[test]
 fn default_tool_exposes_read_only_probe_schema() {
-    let tool = DetectToolsTool::default();
+    let tool = <DetectToolsTool as Default>::default();
     assert!(!tool.description().is_empty());
     assert_eq!(
         tool.parameters_schema()["properties"]["tools"]["type"],
