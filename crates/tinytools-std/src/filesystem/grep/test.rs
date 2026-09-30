@@ -1,13 +1,10 @@
-use super::*;
-use crate::security::{AutonomyLevel, SecurityPolicy};
+//! Behavior tests for the `grep` tool, driven through a fake [`FsGate`].
 
-fn test_security(workspace: std::path::PathBuf) -> Arc<SecurityPolicy> {
-    Arc::new(SecurityPolicy {
-        autonomy: AutonomyLevel::Supervised,
-        action_dir: workspace.clone(),
-        workspace_dir: workspace,
-        ..SecurityPolicy::default()
-    })
+use super::*;
+use crate::filesystem::test_support::{AutonomyLevel, TestGate};
+
+fn test_security(workspace: std::path::PathBuf) -> Arc<TestGate> {
+    TestGate::supervised(workspace)
 }
 
 #[test]

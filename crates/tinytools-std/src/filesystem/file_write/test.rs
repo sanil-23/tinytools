@@ -1,27 +1,18 @@
-use super::*;
-use crate::security::{AutonomyLevel, SecurityPolicy};
+//! Behavior tests for the `file_write` tool, driven through a fake [`FsGate`].
 
-fn test_security(workspace: std::path::PathBuf) -> Arc<SecurityPolicy> {
-    Arc::new(SecurityPolicy {
-        autonomy: AutonomyLevel::Supervised,
-        workspace_dir: workspace.clone(),
-        action_dir: workspace,
-        ..SecurityPolicy::default()
-    })
+use super::*;
+use crate::filesystem::test_support::{AutonomyLevel, TestGate};
+
+fn test_security(workspace: std::path::PathBuf) -> Arc<TestGate> {
+    TestGate::supervised(workspace)
 }
 
 fn test_security_with(
     workspace: std::path::PathBuf,
     autonomy: AutonomyLevel,
-    max_actions_per_hour: u32,
-) -> Arc<SecurityPolicy> {
-    Arc::new(SecurityPolicy {
-        autonomy,
-        workspace_dir: workspace.clone(),
-        action_dir: workspace,
-        max_actions_per_hour,
-        ..SecurityPolicy::default()
-    })
+    max_actions_per_hour: usize,
+) -> Arc<TestGate> {
+    TestGate::with(workspace, autonomy, max_actions_per_hour)
 }
 
 #[test]
@@ -242,7 +233,7 @@ async fn file_write_blocks_readonly_mode() {
     assert!(
         result
             .output()
-            .contains(crate::security::POLICY_BLOCKED_MARKER),
+            .contains(crate::filesystem::test_support::POLICY_BLOCKED_MARKER),
         "file_write readonly block must carry the hard-reject marker: {}",
         result.output()
     );

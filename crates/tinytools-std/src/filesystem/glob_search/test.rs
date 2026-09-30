@@ -1,44 +1,20 @@
-use super::*;
-use crate::security::{AutonomyLevel, SecurityPolicy, TrustedAccess, TrustedRoot};
+//! Behavior tests for the `glob` tool, driven through a fake [`FsGate`].
 
-fn test_security(workspace: std::path::PathBuf) -> Arc<SecurityPolicy> {
-    Arc::new(SecurityPolicy {
-        autonomy: AutonomyLevel::Supervised,
-        action_dir: workspace.clone(),
-        workspace_dir: workspace.clone(),
-        // Mirror the production constructor, which registers the action
-        // sandbox as a ReadWrite trusted root so validate_path accepts it
-        // even under workspace_only.
-        trusted_roots: vec![TrustedRoot {
-            path: workspace.to_string_lossy().to_string(),
-            access: TrustedAccess::ReadWrite,
-        }],
-        ..SecurityPolicy::default()
-    })
+use super::*;
+use crate::filesystem::test_support::TestGate;
+
+fn test_security(workspace: std::path::PathBuf) -> Arc<TestGate> {
+    TestGate::supervised(workspace)
 }
 
-/// Policy with a distinct action sandbox and internal workspace — the real
-/// production shape, and the configuration that surfaced #3357.
+/// Gate with an action sandbox and extra granted roots: the production shape,
+/// and the configuration that surfaced #3357.
 fn test_security_split(
     action_dir: std::path::PathBuf,
-    workspace_dir: std::path::PathBuf,
+    _workspace_dir: std::path::PathBuf,
     extra_roots: Vec<std::path::PathBuf>,
-) -> Arc<SecurityPolicy> {
-    let mut roots = vec![TrustedRoot {
-        path: action_dir.to_string_lossy().to_string(),
-        access: TrustedAccess::ReadWrite,
-    }];
-    roots.extend(extra_roots.into_iter().map(|p| TrustedRoot {
-        path: p.to_string_lossy().to_string(),
-        access: TrustedAccess::ReadWrite,
-    }));
-    Arc::new(SecurityPolicy {
-        autonomy: AutonomyLevel::Supervised,
-        action_dir,
-        workspace_dir,
-        trusted_roots: roots,
-        ..SecurityPolicy::default()
-    })
+) -> Arc<TestGate> {
+    TestGate::split(action_dir, extra_roots)
 }
 
 #[test]

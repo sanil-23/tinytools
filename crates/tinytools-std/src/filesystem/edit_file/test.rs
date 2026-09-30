@@ -1,22 +1,14 @@
-use super::*;
-use crate::security::{AutonomyLevel, SecurityPolicy};
+//! Behavior tests for the `edit_file` tool, driven through a fake [`FsGate`].
 
-fn test_security(workspace: std::path::PathBuf) -> Arc<SecurityPolicy> {
-    Arc::new(SecurityPolicy {
-        autonomy: AutonomyLevel::Supervised,
-        workspace_dir: workspace.clone(),
-        action_dir: workspace,
-        ..SecurityPolicy::default()
-    })
+use super::*;
+use crate::filesystem::test_support::{AutonomyLevel, TestGate};
+
+fn test_security(workspace: std::path::PathBuf) -> Arc<TestGate> {
+    TestGate::supervised(workspace)
 }
 
-fn test_security_readonly(workspace: std::path::PathBuf) -> Arc<SecurityPolicy> {
-    Arc::new(SecurityPolicy {
-        autonomy: AutonomyLevel::ReadOnly,
-        workspace_dir: workspace.clone(),
-        action_dir: workspace,
-        ..SecurityPolicy::default()
-    })
+fn test_security_readonly(workspace: std::path::PathBuf) -> Arc<TestGate> {
+    TestGate::with(workspace, AutonomyLevel::ReadOnly, 1_000_000)
 }
 
 #[test]
