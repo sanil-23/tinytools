@@ -85,6 +85,7 @@ pub fn record_write(agent_id: &str, resolved_path: PathBuf) {
 /// Check whether `agent_id`'s view of `resolved_path` is stale because
 /// another agent wrote to it after this agent's last read. Returns an
 /// error message when stale, `None` when safe.
+#[must_use]
 pub fn check_stale_read(agent_id: &str, resolved_path: &PathBuf) -> Option<String> {
     let coord = try_global()?;
     let reads = coord.reads.read();
@@ -106,6 +107,7 @@ pub fn check_stale_read(agent_id: &str, resolved_path: &PathBuf) -> Option<Strin
 
 /// Check whether `agent_id`'s last read of `resolved_path` was partial.
 /// Returns an error message when partial, `None` when safe.
+#[must_use]
 pub fn check_partial_read(agent_id: &str, resolved_path: &Path) -> Option<String> {
     let coord = try_global()?;
     let reads = coord.reads.read();
@@ -143,6 +145,7 @@ pub async fn acquire_path_lock(resolved_path: &Path) -> Option<OwnedMutexGuard<(
 
 /// Return resolved paths that `parent_agent_id` had previously read but
 /// were subsequently written by any agent in `child_agent_ids`.
+#[must_use]
 pub fn parent_stale_files(parent_agent_id: &str, child_agent_ids: &[String]) -> Vec<PathBuf> {
     let Some(coord) = try_global() else {
         return Vec::new();
@@ -154,11 +157,10 @@ pub fn parent_stale_files(parent_agent_id: &str, child_agent_ids: &[String]) -> 
         if agent_id != parent_agent_id {
             continue;
         }
-        if let Some(ws) = writes.get(path) {
-            if child_agent_ids.contains(&ws.writer) && ws.timestamp > read_stamp.timestamp {
+        if let Some(ws) = writes.get(path)
+            && child_agent_ids.contains(&ws.writer) && ws.timestamp > read_stamp.timestamp {
                 stale.push(path.clone());
             }
-        }
     }
     stale.sort();
     stale.dedup();

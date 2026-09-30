@@ -49,6 +49,7 @@ impl Default for FileStateCoordinator {
 }
 
 impl FileStateCoordinator {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             reads: RwLock::new(HashMap::new()),
@@ -67,11 +68,10 @@ impl FileStateCoordinator {
             if agent_id != parent_agent_id {
                 continue;
             }
-            if let Some(ws) = writes.get(path) {
-                if ws.writer != parent_agent_id && ws.timestamp > read_stamp.timestamp {
+            if let Some(ws) = writes.get(path)
+                && ws.writer != parent_agent_id && ws.timestamp > read_stamp.timestamp {
                     stale.push(path.clone());
                 }
-            }
         }
         stale.sort();
         stale.dedup();

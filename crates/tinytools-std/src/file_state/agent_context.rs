@@ -10,8 +10,9 @@ tokio::task_local! {
 /// Returns the current agent's identity for file-state tracking, if set.
 ///
 /// Returns `None` outside an agent turn (CLI, JSON-RPC direct, unit tests).
+#[must_use]
 pub fn current_file_state_agent_id() -> Option<String> {
-    FILE_STATE_AGENT_ID.try_with(|id| id.clone()).ok()
+    FILE_STATE_AGENT_ID.try_with(std::clone::Clone::clone).ok()
 }
 
 /// Run `future` with `agent_id` installed as the file-state identity.

@@ -1,7 +1,7 @@
 //! Shared output formatting for the shell-family command tools (`shell`,
 //! `node_exec`, `npm_exec`).
 //!
-//! # Why this exists (code_executor no-progress loop, #4095)
+//! # Why this exists (`code_executor` no-progress loop, #4095)
 //!
 //! Each shell-family tool previously formatted a FAILED command as
 //! `if stderr.is_empty() { stdout } else { stderr }` with no exit code. That
@@ -49,6 +49,7 @@ fn exit_code_hint(code: i32) -> &'static str {
 /// Render a finished command's exit status + captured streams into the text the
 /// model sees on FAILURE. Never drops a non-empty stream; always states the exit
 /// code (or that the process was terminated by a signal).
+#[must_use]
 pub fn render_command_failure(exit_code: Option<i32>, stdout: &str, stderr: &str) -> String {
     let mut out = match exit_code {
         Some(code) => format!("Command failed (exit code {code}{})", exit_code_hint(code)),
@@ -73,6 +74,7 @@ pub fn render_command_failure(exit_code: Option<i32>, stdout: &str, stderr: &str
 /// A `ToolResult::error` carrying [`render_command_failure`]. The single failure
 /// constructor shared by every shell-family tool, on both the native and the
 /// sandboxed execution path, so the surfaced shape can't drift between them.
+#[must_use]
 pub fn command_failure(exit_code: Option<i32>, stdout: &str, stderr: &str) -> ToolResult {
     ToolResult::error(render_command_failure(exit_code, stdout, stderr))
 }
@@ -82,6 +84,7 @@ pub fn command_failure(exit_code: Option<i32>, stdout: &str, stderr: &str) -> To
 /// "terminated / no real exit code" (see `sandbox::types::SandboxExecResult`);
 /// map any negative value to `None` so it renders as a signal termination rather
 /// than the literal `exit code -1`.
+#[must_use]
 pub fn sandbox_exit_code(code: i32) -> Option<i32> {
     if code < 0 {
         None

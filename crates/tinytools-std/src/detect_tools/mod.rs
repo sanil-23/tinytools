@@ -1,4 +1,4 @@
-//! Tool: detect_tools — report which developer toolchains are installed on PATH.
+//! Tool: `detect_tools` — report which developer toolchains are installed on PATH.
 //!
 //! Lets the agent ground its plans in what the host actually has rather than
 //! assuming. Read-only: it only scans `$PATH` for executables (no subprocesses,
@@ -19,6 +19,7 @@ const DEFAULT_CANDIDATES: &[&str] = &[
 pub struct DetectToolsTool;
 
 impl DetectToolsTool {
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -32,13 +33,14 @@ impl Default for DetectToolsTool {
 
 /// Locate `name` on `$PATH`, honoring `PATHEXT` on Windows. Returns the first
 /// matching executable path, or `None` if not found.
+#[must_use]
 pub fn find_on_path(name: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     let exts: Vec<String> = if cfg!(windows) {
         std::env::var("PATHEXT")
             .unwrap_or_else(|_| ".EXE;.CMD;.BAT".to_string())
             .split(';')
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
             .collect()
     } else {
         vec![String::new()]
@@ -53,8 +55,7 @@ pub fn find_on_path(name: &str) -> Option<PathBuf> {
                 {
                     use std::os::unix::fs::PermissionsExt;
                     let is_exec = std::fs::metadata(&candidate)
-                        .map(|m| m.permissions().mode() & 0o111 != 0)
-                        .unwrap_or(false);
+                        .is_ok_and(|m| m.permissions().mode() & 0o111 != 0);
                     if is_exec {
                         return Some(candidate);
                     }
@@ -71,11 +72,11 @@ pub fn find_on_path(name: &str) -> Option<PathBuf> {
 
 #[async_trait]
 impl Tool for DetectToolsTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "detect_tools"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Detect which developer tools / language runtimes are installed on the host PATH \
          (e.g. node, python3, cargo, docker, git, rg). Use this before assuming a tool \
          exists or before proposing to install one. Read-only — scans PATH only."

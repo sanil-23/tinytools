@@ -67,8 +67,7 @@ pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result
     // A non-empty list = strict mode: only listed domains pass. (#2700)
     if !allowed_domains.is_empty() && !host_matches_allowlist(&host, allowed_domains) {
         log::debug!(
-            "[url_guard] strict-allowlist rejection: host={host} allowed={:?}",
-            allowed_domains
+            "[url_guard] strict-allowlist rejection: host={host} allowed={allowed_domains:?}"
         );
         anyhow::bail!(
             "I'm not allowed to open '{host}' — it isn't in your allowed websites. \
@@ -164,6 +163,7 @@ async fn resolve_host_ips(host: String, port: u16) -> anyhow::Result<Vec<IpAddr>
     })?
 }
 
+#[must_use]
 pub fn normalize_allowed_domains(domains: Vec<String>) -> Vec<String> {
     if domains.is_empty() {
         return Vec::new();
@@ -283,6 +283,7 @@ pub fn extract_port(url: &str) -> anyhow::Result<u16> {
     Ok(if is_http { 80 } else { 443 })
 }
 
+#[must_use]
 pub fn host_matches_allowlist(host: &str, allowed_domains: &[String]) -> bool {
     allowed_domains.iter().any(|domain| {
         // `"*"` is the explicit allow-all wildcard (the "Allow all sites"
@@ -297,6 +298,7 @@ pub fn host_matches_allowlist(host: &str, allowed_domains: &[String]) -> bool {
     })
 }
 
+#[must_use]
 pub fn is_private_or_local_host(host: &str) -> bool {
     let unbracketed = host
         .strip_prefix('[')
@@ -325,6 +327,7 @@ pub fn is_private_or_local_host(host: &str) -> bool {
     false
 }
 
+#[must_use]
 pub fn is_non_global_v4(v4: std::net::Ipv4Addr) -> bool {
     let [a, b, c, _] = v4.octets();
     v4.is_loopback()

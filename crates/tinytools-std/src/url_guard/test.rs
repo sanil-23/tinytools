@@ -524,7 +524,7 @@ fn exported_ssrf_predicates_classify_non_global_ips_accurately() {
     use std::net::{Ipv4Addr, Ipv6Addr};
 
     // IPv4 Non-global checks
-    assert!(is_non_global_v4(Ipv4Addr::new(127, 0, 0, 1)));
+    assert!(is_non_global_v4(Ipv4Addr::LOCALHOST));
     assert!(is_non_global_v4(Ipv4Addr::new(10, 0, 0, 1)));
     assert!(is_non_global_v4(Ipv4Addr::new(172, 16, 0, 1)));
     assert!(is_non_global_v4(Ipv4Addr::new(192, 168, 1, 1)));
@@ -535,7 +535,7 @@ fn exported_ssrf_predicates_classify_non_global_ips_accurately() {
     assert!(is_non_global_v4(Ipv4Addr::new(198, 51, 100, 1))); // TEST-NET-2
     assert!(is_non_global_v4(Ipv4Addr::new(203, 0, 113, 1))); // TEST-NET-3
     assert!(is_non_global_v4(Ipv4Addr::new(192, 88, 99, 1))); // 6to4 anycast
-    assert!(is_non_global_v4(Ipv4Addr::new(0, 0, 0, 0))); // 0.0.0.0/8
+    assert!(is_non_global_v4(Ipv4Addr::UNSPECIFIED)); // 0.0.0.0/8
     assert!(is_non_global_v4(Ipv4Addr::new(0, 1, 2, 3))); // 0.0.0.0/8
 
     // IPv4 Global public IPs
