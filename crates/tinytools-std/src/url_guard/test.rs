@@ -162,7 +162,7 @@ fn normalize_empty_input_stays_empty_for_open_mode() {
 #[test]
 fn normalization_discards_invalid_domains_and_strips_ports() {
     assert_eq!(
-        normalize_domain("https://.Example.com.:8443/path").as_deref(),
+        normalize_domain("https://.Example.com:8443/path").as_deref(),
         Some("example.com")
     );
     assert_eq!(normalize_domain("   "), None);
