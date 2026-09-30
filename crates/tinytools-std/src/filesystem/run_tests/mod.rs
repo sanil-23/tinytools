@@ -7,6 +7,7 @@ use tinytools::ToolRunContext;
 use tinytools::{PermissionLevel, Tool, ToolCallOptions, ToolResult};
 
 /// Runs test suites (cargo test, vitest) and returns pass/fail with output.
+#[derive(Debug)]
 pub struct RunTestsTool {
     workspace_dir: PathBuf,
 }

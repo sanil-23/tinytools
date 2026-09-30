@@ -7,6 +7,7 @@ use tinytools::ToolRunContext;
 use tinytools::{PermissionLevel, Tool, ToolCallOptions, ToolResult};
 
 /// Runs linters (cargo clippy, eslint) and returns structured findings.
+#[derive(Debug)]
 pub struct RunLinterTool {
     workspace_dir: PathBuf,
 }

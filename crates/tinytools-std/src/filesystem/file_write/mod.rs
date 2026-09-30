@@ -9,6 +9,7 @@ use tinytools::{PermissionLevel, Tool, ToolCallOptions, ToolResult};
 const MAX_CONTENT_BYTES: usize = 5 * 1024 * 1024;
 
 /// Write file contents with path sandboxing
+#[derive(Debug)]
 pub struct FileWriteTool {
     gate: Arc<dyn FsGate>,
     approval_workspace_root: Option<std::path::PathBuf>,

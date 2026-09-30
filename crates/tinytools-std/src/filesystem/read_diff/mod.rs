@@ -7,6 +7,7 @@ use tinytools::ToolRunContext;
 use tinytools::{PermissionLevel, Tool, ToolCallOptions, ToolResult};
 
 /// Returns `git diff` output in a structured format.
+#[derive(Debug)]
 pub struct ReadDiffTool {
     workspace_dir: PathBuf,
 }

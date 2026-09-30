@@ -140,6 +140,7 @@ async fn atomic_write(path: &Path, file: &str, content: &str) -> anyhow::Result<
 /// - `append`: adds `content` to the end of the file.
 /// - `replace_section`: locates the first `## {section_title}` heading and
 ///   replaces the body (lines until the next `##` heading or EOF) with `content`.
+#[derive(Debug)]
 pub struct UpdateMemoryMdTool {
     workspace_dir: PathBuf,
 }

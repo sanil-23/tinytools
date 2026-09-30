@@ -35,6 +35,8 @@ use walkdir::WalkDir;
 
 const DEFAULT_MAX_RESULTS: usize = 500;
 
+/// Find files by glob pattern, newest first.
+#[derive(Debug)]
 pub struct GlobTool {
     gate: Arc<dyn FsGate>,
 }

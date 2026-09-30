@@ -27,6 +27,8 @@ use tinytools::{PermissionLevel, Tool, ToolCallOptions, ToolResult};
 const MAX_FILE_BYTES: u64 = 5 * 1024 * 1024;
 const MAX_EDITS: usize = 50;
 
+/// Apply a multi-edit patch to workspace files atomically.
+#[derive(Debug)]
 pub struct ApplyPatchTool {
     gate: Arc<dyn FsGate>,
 }

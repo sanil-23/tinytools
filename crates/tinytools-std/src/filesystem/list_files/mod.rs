@@ -13,6 +13,8 @@ use tinytools::{PermissionLevel, Tool, ToolCallOptions, ToolResult};
 
 const MAX_ENTRIES: usize = 1_000;
 
+/// List the entries of a workspace directory.
+#[derive(Debug)]
 pub struct ListFilesTool {
     gate: Arc<dyn FsGate>,
 }

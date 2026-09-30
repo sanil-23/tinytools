@@ -16,6 +16,8 @@ use tinytools::{PermissionLevel, Tool, ToolCallOptions, ToolResult};
 
 const MAX_FILE_BYTES: u64 = 5 * 1024 * 1024;
 
+/// Replace an exact string in a workspace file.
+#[derive(Debug)]
 pub struct EditFileTool {
     gate: Arc<dyn FsGate>,
     sink: Arc<dyn super::file_sink::FileSink>,

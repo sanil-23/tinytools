@@ -6,6 +6,7 @@ use tinytools::ToolRunContext;
 use tinytools::{Tool, ToolCallOptions, ToolResult};
 
 /// Export structured data (JSON array of objects) as a CSV file to the workspace.
+#[derive(Debug)]
 pub struct CsvExportTool {
     gate: Arc<dyn FsGate>,
 }

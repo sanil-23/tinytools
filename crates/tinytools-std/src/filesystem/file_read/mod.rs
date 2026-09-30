@@ -15,6 +15,7 @@ const MAX_PAGE_BYTES: usize = 12 * 1024;
 const MAX_TOOL_OUTPUT_BYTES: usize = 16 * 1024;
 
 /// Read file contents with path sandboxing
+#[derive(Debug)]
 pub struct FileReadTool {
     gate: Arc<dyn FsGate>,
 }

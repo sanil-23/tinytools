@@ -15,6 +15,7 @@ use self::render::{render_branch_markdown, render_log_markdown, render_status_ma
 
 /// Git operations tool for structured repository management.
 /// Provides safe, parsed git operations with JSON output.
+#[derive(Debug)]
 pub struct GitOperationsTool {
     gate: Arc<dyn FsGate>,
     action_dir: PathBuf,

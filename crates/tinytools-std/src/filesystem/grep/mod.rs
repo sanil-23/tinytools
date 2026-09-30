@@ -19,6 +19,8 @@ const DEFAULT_MAX_MATCHES: usize = 200;
 const MAX_LINE_BYTES: usize = 2_000;
 const MAX_FILE_BYTES: u64 = 5 * 1024 * 1024;
 
+/// Search file contents with a regular expression.
+#[derive(Debug)]
 pub struct GrepTool {
     gate: Arc<dyn FsGate>,
 }
