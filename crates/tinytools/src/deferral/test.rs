@@ -65,3 +65,13 @@ fn deferred_tool_names_lists_every_deferred_registration() {
         HashSet::from(["deferred".to_string(), "unlisted_deferred".to_string()])
     );
 }
+
+#[tokio::test]
+async fn fake_tools_implement_the_public_tool_contract() -> anyhow::Result<()> {
+    let registered = tools();
+    let fake = &registered[0];
+    assert_eq!(fake.description(), "fake");
+    assert_eq!(fake.parameters_schema(), json!({"type": "object"}));
+    assert_eq!(fake.execute(json!({})).await?.output(), "ok");
+    Ok(())
+}

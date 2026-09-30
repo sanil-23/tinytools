@@ -27,6 +27,26 @@ fn name_and_permission() {
     assert_eq!(tool.permission_level(), PermissionLevel::ReadOnly);
 }
 
+#[test]
+fn default_and_metadata_contracts_are_available() {
+    let tool = DetectToolsTool::default();
+    assert!(tool.description().contains("PATH"));
+    assert_eq!(
+        tool.parameters_schema()["properties"]["tools"]["type"],
+        "array"
+    );
+}
+
+#[tokio::test]
+async fn non_string_tool_names_fall_back_to_the_default_catalog() -> anyhow::Result<()> {
+    let result = DetectToolsTool::new()
+        .execute(json!({"tools": [null, 3]}))
+        .await?;
+    let payload: serde_json::Value = serde_json::from_str(&result.output())?;
+    assert_eq!(payload["probed"], super::DEFAULT_CANDIDATES.len());
+    Ok(())
+}
+
 #[tokio::test]
 async fn missing_tool_reported_missing() -> anyhow::Result<()> {
     let tool = DetectToolsTool::new();
