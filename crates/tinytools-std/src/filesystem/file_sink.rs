@@ -21,11 +21,12 @@ use async_trait::async_trait;
 
 /// Where a tool's file writes land.
 #[async_trait]
-pub(super) trait FileSink: Send + Sync {
+pub(super) trait FileSink: std::fmt::Debug + Send + Sync {
     async fn write(&self, path: &Path, contents: &[u8]) -> std::io::Result<()>;
 }
 
 /// The real filesystem.
+#[derive(Debug)]
 pub(super) struct OsFileSink;
 
 #[async_trait]
@@ -43,6 +44,7 @@ pub(super) fn os_sink() -> Arc<dyn FileSink> {
 /// A sink that refuses every write with `kind`, for asserting the branch a
 /// tool takes when the filesystem says no.
 #[cfg(test)]
+#[derive(Debug)]
 pub(super) struct RefusingSink(pub std::io::ErrorKind);
 
 #[cfg(test)]
