@@ -1,7 +1,7 @@
 //! Repository-config hardening (#5494) — the tests for
 //! [`super::config`].
 //!
-//! Split out of `git_operations_tests.rs` for the Rust layout gate, along the
+//! Split out of `test.rs` for the Rust layout gate, along the
 //! same seam as the module split: these exercise the allow-list and the
 //! hardened `git` invocation rather than the command surface.
 //!
@@ -21,7 +21,7 @@
 use super::config::{
     NEUTRALISED_CONFIG, SHELL_NEUTRALISED_CONFIG, normalise_config_key, shell_git_env,
 };
-// The fixtures stay in `git_operations_tests.rs` and are shared rather than
+// The fixtures stay in `test.rs` and are shared rather than
 // duplicated: both modules are children of `git_operations`, so `pub(super)`
 // there makes them reachable here.
 use super::test::{error_text, hermetic, init_git_repo, test_tool};
