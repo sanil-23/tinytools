@@ -1,4 +1,4 @@
-//! Tool: read_diff — structured git diff output for the Critic archetype.
+//! Tool: `read_diff` — structured git diff output for the Critic archetype.
 
 use async_trait::async_trait;
 use serde_json::json;
@@ -12,6 +12,7 @@ pub struct ReadDiffTool {
 }
 
 impl ReadDiffTool {
+    #[must_use]
     pub fn new(workspace_dir: PathBuf) -> Self {
         Self { workspace_dir }
     }
@@ -35,11 +36,11 @@ impl Tool for ReadDiffTool {
         tinytools::ToolExposure::Deferred
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "read_diff"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Get the git diff of current changes. Can diff staged, unstaged, or against a \
          specific base branch/commit. Returns file paths and hunks."
     }
@@ -83,7 +84,7 @@ impl Tool for ReadDiffTool {
         let base = args.get("base").and_then(|v| v.as_str());
         let staged = args
             .get("staged")
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
         let path_filter = args.get("path_filter").and_then(|v| v.as_str());
 
@@ -93,7 +94,7 @@ impl Tool for ReadDiffTool {
             git_args.push("--cached");
         }
 
-        let base_str = base.map(|b| b.to_string());
+        let base_str = base.map(std::string::ToString::to_string);
         if let Some(ref bs) = base_str {
             git_args.push(bs);
         }

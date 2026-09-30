@@ -1,4 +1,4 @@
-//! Tool: run_linter — run linting tools for the Critic archetype.
+//! Tool: `run_linter` — run linting tools for the Critic archetype.
 
 use async_trait::async_trait;
 use serde_json::json;
@@ -12,6 +12,7 @@ pub struct RunLinterTool {
 }
 
 impl RunLinterTool {
+    #[must_use]
     pub fn new(workspace_dir: PathBuf) -> Self {
         Self { workspace_dir }
     }
@@ -35,11 +36,11 @@ impl Tool for RunLinterTool {
         tinytools::ToolExposure::Deferred
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "run_linter"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Run linting tools on the codebase. Supports 'clippy' for Rust and 'eslint' for \
          TypeScript/JavaScript. Returns warnings and errors."
     }

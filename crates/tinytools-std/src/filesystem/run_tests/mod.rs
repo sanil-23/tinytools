@@ -1,4 +1,4 @@
-//! Tool: run_tests — run test suites for the Critic archetype.
+//! Tool: `run_tests` — run test suites for the Critic archetype.
 
 use async_trait::async_trait;
 use serde_json::json;
@@ -12,6 +12,7 @@ pub struct RunTestsTool {
 }
 
 impl RunTestsTool {
+    #[must_use]
     pub fn new(workspace_dir: PathBuf) -> Self {
         Self { workspace_dir }
     }
@@ -35,11 +36,11 @@ impl Tool for RunTestsTool {
         tinytools::ToolExposure::Deferred
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "run_tests"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Run the project test suite. Supports 'cargo_test' for Rust and 'vitest' for \
          TypeScript/JavaScript. Returns pass/fail results with output."
     }
@@ -90,7 +91,7 @@ impl Tool for RunTestsTool {
         let filter = args.get("filter").and_then(|v| v.as_str());
         let timeout_secs = args
             .get("timeout_secs")
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(120);
 
         let runner = if runner == "auto" {
@@ -164,8 +165,7 @@ impl Tool for RunTestsTool {
                 .char_indices()
                 .take_while(|(i, _)| *i <= 8000)
                 .last()
-                .map(|(i, c)| i + c.len_utf8())
-                .unwrap_or(0);
+                .map_or(0, |(i, c)| i + c.len_utf8());
             format!(
                 "{}...\n[truncated, {} total chars]",
                 &combined[..safe_end],

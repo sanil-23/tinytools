@@ -130,8 +130,8 @@ impl GitOperationsTool {
             } else if let Some(rest) = line.strip_prefix("1 ") {
                 // Ordinary changed entry
                 let mut parts = rest.splitn(3, ' ');
-                if let (Some(staging), Some(path)) = (parts.next(), parts.next()) {
-                    if !staging.is_empty() {
+                if let (Some(staging), Some(path)) = (parts.next(), parts.next())
+                    && !staging.is_empty() {
                         let status_char = staging.chars().next().unwrap_or(' ');
                         if status_char != '.' && status_char != ' ' {
                             staged.push(json!({"path": path, "status": status_char}));
@@ -141,7 +141,6 @@ impl GitOperationsTool {
                             unstaged.push(json!({"path": path, "status": status_char}));
                         }
                     }
-                }
             } else if let Some(rest) = line.strip_prefix("? ") {
                 untracked.push(rest.to_string());
             }
@@ -165,7 +164,7 @@ impl GitOperationsTool {
         let files = args.get("files").and_then(|v| v.as_str()).unwrap_or(".");
         let cached = args
             .get("cached")
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
 
         // Validate files argument against injection patterns
@@ -252,7 +251,7 @@ impl GitOperationsTool {
     }
 
     async fn git_log(&self, cwd: &Path, args: serde_json::Value) -> anyhow::Result<ToolResult> {
-        let limit_raw = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10);
+        let limit_raw = args.get("limit").and_then(serde_json::Value::as_u64).unwrap_or(10);
         let limit = usize::try_from(limit_raw).unwrap_or(usize::MAX).min(1000);
         let limit_str = limit.to_string();
 
@@ -339,7 +338,7 @@ impl GitOperationsTool {
         // Sanitize commit message
         let sanitized = message
             .lines()
-            .map(|l| l.trim())
+            .map(str::trim)
             .filter(|l| !l.is_empty())
             .collect::<Vec<_>>()
             .join("\n");
@@ -428,7 +427,7 @@ impl GitOperationsTool {
             "pop" => self.run_git_command_in(cwd, &["stash", "pop"]).await,
             "list" => self.run_git_command_in(cwd, &["stash", "list"]).await,
             "drop" => {
-                let index_raw = args.get("index").and_then(|v| v.as_u64()).unwrap_or(0);
+                let index_raw = args.get("index").and_then(serde_json::Value::as_u64).unwrap_or(0);
                 let index = i32::try_from(index_raw)
                     .map_err(|_| anyhow::anyhow!("stash index too large: {index_raw}"))?;
                 self.run_git_command_in(cwd, &["stash", "drop", &format!("stash@{{{index}}}")])
@@ -446,11 +445,11 @@ impl GitOperationsTool {
 
 #[async_trait]
 impl Tool for GitOperationsTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "git_operations"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Perform structured Git operations (status, diff, log, branch, commit, add, checkout, stash). Provides parsed JSON output and integrates with security policy for autonomy controls."
     }
 

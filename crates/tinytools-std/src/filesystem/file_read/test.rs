@@ -242,8 +242,7 @@ async fn file_read_nonexistent_consumes_rate_limit_budget() {
     let r3_output = r3.output();
     assert!(
         r3_output.contains("Rate limit"),
-        "Expected rate limit error, got: {:?}",
-        r3_output
+        "Expected rate limit error, got: {r3_output:?}"
     );
 
     let _ = tokio::fs::remove_dir_all(&dir).await;

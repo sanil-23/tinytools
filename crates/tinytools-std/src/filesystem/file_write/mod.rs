@@ -47,11 +47,11 @@ impl FileWriteTool {
 
 #[async_trait]
 impl Tool for FileWriteTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "file_write"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Write contents to a file in your working directory (the action sandbox). \
          Relative paths resolve against that directory; writes outside it are blocked. \
          Reference the file later by the same relative path so `file_read` resolves to it."
@@ -176,14 +176,13 @@ impl FileWriteTool {
         }
 
         // If the target already exists and is a symlink, refuse to follow it
-        if let Ok(meta) = tokio::fs::symlink_metadata(&resolved_target).await {
-            if meta.file_type().is_symlink() {
+        if let Ok(meta) = tokio::fs::symlink_metadata(&resolved_target).await
+            && meta.file_type().is_symlink() {
                 return Ok(ToolResult::error(format!(
                     "Refusing to write through symlink: {}",
                     resolved_target.display()
                 )));
             }
-        }
 
         if !self.gate.record_action() {
             return Ok(ToolResult::error(

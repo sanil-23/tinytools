@@ -31,11 +31,11 @@ impl GrepTool {
 
 #[async_trait]
 impl Tool for GrepTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "grep"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Search file contents in the workspace with a regular expression. \
          Returns up to `max_matches` matches (default 200) as `path:line:text` lines."
     }
@@ -104,12 +104,11 @@ impl GrepTool {
         let sub_path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
         let max_matches = args
             .get("max_matches")
-            .and_then(|v| v.as_u64())
-            .map(|n| (n as usize).max(1))
-            .unwrap_or(DEFAULT_MAX_MATCHES);
+            .and_then(serde_json::Value::as_u64)
+            .map_or(DEFAULT_MAX_MATCHES, |n| (n as usize).max(1));
         let case_insensitive = args
             .get("case_insensitive")
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
 
         if self.gate.is_rate_limited() {
@@ -187,7 +186,7 @@ fn scan_for_matches(
         .follow_links(false)
         .into_iter()
         .filter_entry(|e| !is_skipped(e.file_name().to_string_lossy().as_ref()))
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
     {
         if !entry.file_type().is_file() {
             continue;

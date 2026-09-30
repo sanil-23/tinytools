@@ -31,11 +31,11 @@ impl FileReadTool {
 
 #[async_trait]
 impl Tool for FileReadTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "file_read"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Read the contents of a file in your working directory (the action sandbox). \
          Relative paths resolve against that directory; paths outside it are blocked. \
          To read a file written by `shell`, confirm its location with `pwd` and use the \

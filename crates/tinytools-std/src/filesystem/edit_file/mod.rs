@@ -43,11 +43,11 @@ impl Tool for EditFileTool {
         tinytools::ToolExposure::Deferred
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "edit"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Edit a file by exact string replacement. By default `old_string` must \
          match exactly once. Set `replace_all` to true to replace every match."
     }
@@ -114,7 +114,7 @@ impl EditFileTool {
             .ok_or_else(|| anyhow::anyhow!("Missing 'new_string' parameter"))?;
         let replace_all = args
             .get("replace_all")
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
 
         if old_string.is_empty() {
@@ -148,14 +148,13 @@ impl EditFileTool {
         // Symlink check must happen on the *unresolved* path —
         // `canonicalize` resolves symlinks, so checking after that point
         // would always see the link's final target.
-        if let Ok(meta) = tokio::fs::symlink_metadata(&full).await {
-            if meta.file_type().is_symlink() {
+        if let Ok(meta) = tokio::fs::symlink_metadata(&full).await
+            && meta.file_type().is_symlink() {
                 return Ok(ToolResult::error(format!(
                     "Refusing to edit through symlink: {}",
                     full.display()
                 )));
             }
-        }
 
         // Security check: validate path string, resolve symlinks, confirm workspace containment.
         let resolved = match path_policy.validate_path(path).await {
@@ -163,14 +162,13 @@ impl EditFileTool {
             Err(msg) => return Ok(ToolResult::error(msg)),
         };
 
-        if let Ok(meta) = tokio::fs::metadata(&resolved).await {
-            if meta.len() > MAX_FILE_BYTES {
+        if let Ok(meta) = tokio::fs::metadata(&resolved).await
+            && meta.len() > MAX_FILE_BYTES {
                 return Ok(ToolResult::error(format!(
                     "File too large: {} bytes (limit: {MAX_FILE_BYTES} bytes)",
                     meta.len()
                 )));
             }
-        }
 
         // Acquire per-path lock for the read-modify-write section.
         let _path_guard = file_state::acquire_path_lock(&resolved).await;

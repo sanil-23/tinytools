@@ -84,8 +84,8 @@ async fn glob_skips_node_modules() {
     let _ = tokio::fs::remove_dir_all(&dir).await;
 }
 
-/// Regression for #3357: glob roots at action_dir (so its hits are readable),
-/// and never surfaces files living under the internal workspace_dir.
+/// Regression for #3357: glob roots at `action_dir` (so its hits are readable),
+/// and never surfaces files living under the internal `workspace_dir`.
 #[tokio::test]
 async fn glob_roots_at_action_dir_and_excludes_workspace() {
     let root = std::env::temp_dir().join("openhuman_test_glob_split");

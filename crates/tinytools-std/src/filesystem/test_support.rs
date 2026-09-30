@@ -98,8 +98,7 @@ impl TestGate {
         };
         self.roots.iter().any(|root| {
             root.canonicalize()
-                .map(|root| canonical.starts_with(root))
-                .unwrap_or(false)
+                .is_ok_and(|root| canonical.starts_with(root))
         })
     }
 

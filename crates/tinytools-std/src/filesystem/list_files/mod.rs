@@ -25,11 +25,11 @@ impl ListFilesTool {
 
 #[async_trait]
 impl Tool for ListFilesTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "list"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "List entries in a workspace directory (non-recursive). Each line is \
          `<kind>\t<name>` where kind is `dir`, `file`, or `link`."
     }

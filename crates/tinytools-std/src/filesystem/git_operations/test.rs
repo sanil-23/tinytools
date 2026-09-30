@@ -377,7 +377,7 @@ pub(super) fn error_text(result: &anyhow::Result<ToolResult>) -> String {
     match result {
         Ok(r) => {
             assert!(r.is_error, "expected a tool-error ToolResult");
-            r.output().to_string()
+            r.output().clone()
         }
         Err(e) => e.to_string(),
     }

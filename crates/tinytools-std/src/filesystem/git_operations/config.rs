@@ -184,6 +184,7 @@ pub(crate) const SHELL_NEUTRALISED_CONFIG: &[&str] = &[
 /// Preserve ambient `GIT_CONFIG_PARAMETERS` exactly, including non-UTF-8
 /// bytes, because git uses it to propagate a parent's `-c` settings. The
 /// safety overrides are appended so they win when the same key is repeated.
+#[must_use]
 pub fn shell_git_env() -> std::collections::HashMap<std::ffi::OsString, std::ffi::OsString> {
     let mut parameters = std::env::var_os("GIT_CONFIG_PARAMETERS").unwrap_or_default();
     for entry in SHELL_NEUTRALISED_CONFIG {

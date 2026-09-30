@@ -47,11 +47,11 @@ impl GlobTool {
 
 #[async_trait]
 impl Tool for GlobTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "glob"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Find files matching a glob pattern (e.g. `src/**/*.rs`), searching the action sandbox unless `path` says otherwise. Returns paths newest-first, ready to pass straight to `file_read` / `grep`."
     }
 
@@ -120,9 +120,8 @@ impl GlobTool {
             .unwrap_or(".");
         let max_results = args
             .get("max_results")
-            .and_then(|v| v.as_u64())
-            .map(|n| (n as usize).max(1))
-            .unwrap_or(DEFAULT_MAX_RESULTS);
+            .and_then(serde_json::Value::as_u64)
+            .map_or(DEFAULT_MAX_RESULTS, |n| (n as usize).max(1));
 
         if self.gate.is_rate_limited() {
             return Ok(ToolResult::error(
@@ -179,7 +178,7 @@ impl GlobTool {
                     "glob search path '{search_path}' is not accessible: {e}"
                 )));
             }
-        };
+        }
         log::debug!(
             "[tools:glob] resolved search root: '{}' (action_dir='{}')",
             base.display(),
@@ -265,7 +264,7 @@ fn collect_matches(
         .follow_links(false)
         .into_iter()
         .filter_entry(|e| !is_skipped(e.file_name().to_string_lossy().as_ref()))
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
     {
         if !entry.file_type().is_file() {
             continue;

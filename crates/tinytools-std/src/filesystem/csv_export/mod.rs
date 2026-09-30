@@ -45,7 +45,7 @@ fn value_to_cell(v: &serde_json::Value) -> String {
 
 /// Collect column headers from a JSON array. If `columns` is provided,
 /// use those in order. Otherwise, collect all keys from the first object
-/// in the array (sorted alphabetically — serde_json uses BTreeMap by
+/// in the array (sorted alphabetically — `serde_json` uses `BTreeMap` by
 /// default). Callers who need a specific column order should pass the
 /// `columns` parameter.
 fn resolve_columns(items: &[serde_json::Value], columns: Option<&[String]>) -> Vec<String> {
@@ -53,11 +53,10 @@ fn resolve_columns(items: &[serde_json::Value], columns: Option<&[String]>) -> V
         return cols.to_vec();
     }
     // Collect keys from the first object.
-    if let Some(first) = items.first() {
-        if let Some(obj) = first.as_object() {
+    if let Some(first) = items.first()
+        && let Some(obj) = first.as_object() {
             return obj.keys().cloned().collect();
         }
-    }
     Vec::new()
 }
 
@@ -88,11 +87,11 @@ fn render_csv(items: &[serde_json::Value], columns: &[String]) -> String {
 
 #[async_trait]
 impl Tool for CsvExportTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "csv_export"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Export structured data (JSON array of objects) as a CSV file to the workspace. \
          Returns the file path. Use when the user wants raw tabular data from a tool \
          result that's too large to include inline."
@@ -222,14 +221,13 @@ impl CsvExportTool {
         }
 
         // If the target already exists and is a symlink, refuse to follow it
-        if let Ok(meta) = tokio::fs::symlink_metadata(&resolved_target).await {
-            if meta.file_type().is_symlink() {
+        if let Ok(meta) = tokio::fs::symlink_metadata(&resolved_target).await
+            && meta.file_type().is_symlink() {
                 return Ok(ToolResult::error(format!(
                     "Refusing to write through symlink: {}",
                     resolved_target.display()
                 )));
             }
-        }
 
         if !self.gate.record_action() {
             return Ok(ToolResult::error(

@@ -1,4 +1,4 @@
-//! Tool: update_memory_md — append or update sections in MEMORY.md or SKILL.md.
+//! Tool: `update_memory_md` — append or update sections in MEMORY.md or SKILL.md.
 
 use async_trait::async_trait;
 use serde_json::json;
@@ -38,7 +38,7 @@ fn workspace_write_lock(workspace_dir: &Path) -> Arc<tokio::sync::Mutex<()>> {
         .unwrap_or_else(|_| workspace_dir.to_path_buf());
     let mut map = WORKSPACE_WRITE_LOCKS
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     Arc::clone(
         map.entry(key)
             .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(()))),
@@ -66,13 +66,12 @@ async fn acquire_cross_process_write_lock(workspace_dir: &Path) -> anyhow::Resul
         // create/open/lock to a path OUTSIDE the already-containment-checked
         // workspace, bypassing the symlink hardening applied to MEMORY.md /
         // SKILL.md. If it exists it must be a regular file.
-        if let Ok(meta) = std::fs::symlink_metadata(&lock_path) {
-            if meta.file_type().is_symlink() {
+        if let Ok(meta) = std::fs::symlink_metadata(&lock_path)
+            && meta.file_type().is_symlink() {
                 return Err(anyhow::anyhow!(
                     "workspace lock file {lock_path:?} is a symlink; refusing to follow it"
                 ));
             }
-        }
         let mut opts = std::fs::OpenOptions::new();
         opts.create(true).write(true).truncate(false);
         #[cfg(unix)]
@@ -146,6 +145,7 @@ pub struct UpdateMemoryMdTool {
 }
 
 impl UpdateMemoryMdTool {
+    #[must_use]
     pub fn new(workspace_dir: PathBuf) -> Self {
         Self { workspace_dir }
     }
@@ -165,11 +165,11 @@ impl UpdateMemoryMdTool {
 
 #[async_trait]
 impl Tool for UpdateMemoryMdTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "update_memory_md"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Append or update sections in MEMORY.md or SKILL.md workspace files. \
          Use 'append' to add new notes at the end, or 'replace_section' to \
          overwrite the body under a named '## Section' heading."
