@@ -1,3 +1,5 @@
+//! Tests for read/write tracking, staleness checks, and path locks.
+
 use crate::file_state::types::WriteStamp;
 use crate::file_state::{FileStateCoordinator, ReadStamp};
 use std::path::PathBuf;
@@ -21,9 +23,12 @@ fn record_and_check_no_staleness() -> anyhow::Result<()> {
             partial: false,
         },
     );
-    let reads = coord.reads.read();
-    let rs = reads.get(&("agent-a".to_string(), path.clone()))?;
-    assert!(!rs.partial);
+    let partial = coord
+        .reads
+        .read()
+        .get(&("agent-a".to_string(), path.clone()))
+        .map(|rs| rs.partial);
+    assert_eq!(partial, Some(false));
     assert!(coord.writes.read().get(&path).is_none());
     Ok(())
 }
@@ -90,9 +95,12 @@ fn partial_read_detected() -> anyhow::Result<()> {
             partial: true,
         },
     );
-    let reads = coord.reads.read();
-    let rs = reads.get(&("agent-a".to_string(), path.clone()))?;
-    assert!(rs.partial);
+    let partial = coord
+        .reads
+        .read()
+        .get(&("agent-a".to_string(), path.clone()))
+        .map(|rs| rs.partial);
+    assert_eq!(partial, Some(true));
     Ok(())
 }
 
@@ -184,7 +192,8 @@ async fn global_api_tracks_reads_writes_and_locks() {
 
     std::thread::sleep(Duration::from_millis(5));
     record_write("writer", path.clone());
-    let msg = check_stale_read("reader", &path).expect("stale after sibling write");
+    let msg = check_stale_read("reader", &path)
+        .ok_or_else(|| anyhow::anyhow!("expected a stale read after the sibling write"))?;
     assert!(msg.contains("writer"));
     assert_eq!(
         parent_stale_files("reader", &["writer".to_string()]),

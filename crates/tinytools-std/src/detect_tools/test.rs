@@ -1,4 +1,5 @@
-#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+//! Unit tests for `PATH` probing, `PATHEXT` candidate names, and the
+//! `detect_tools` tool's payload.
 
 use super::*;
 
@@ -18,10 +19,10 @@ async fn missing_tool_reported_missing() -> anyhow::Result<()> {
     assert!(!result.is_error);
     let payload: serde_json::Value = serde_json::from_str(&result.output())?;
     assert_eq!(payload["probed"], 1);
-    assert_eq!(payload["available"].as_array()?.len(), 0);
+    assert_eq!(payload["available"], json!([]));
     assert_eq!(
-        payload["missing"].as_array()?[0],
-        "definitely_not_a_real_binary_xyz_123"
+        payload["missing"],
+        json!(["definitely_not_a_real_binary_xyz_123"])
     );
     Ok(())
 }
@@ -33,8 +34,8 @@ async fn available_plus_missing_equals_probed() -> anyhow::Result<()> {
         .execute(json!({ "tools": ["sh", "definitely_not_a_real_binary_xyz_123"] }))
         .await?;
     let payload: serde_json::Value = serde_json::from_str(&result.output())?;
-    let avail = payload["available"].as_array()?.len();
-    let miss = payload["missing"].as_array()?.len();
+    let avail = payload["available"].as_array().map_or(0, Vec::len);
+    let miss = payload["missing"].as_array().map_or(0, Vec::len);
     assert_eq!(avail + miss, 2);
     Ok(())
 }

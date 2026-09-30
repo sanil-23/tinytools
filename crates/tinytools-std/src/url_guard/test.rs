@@ -1,6 +1,22 @@
-#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+//! Unit tests for URL validation, SSRF host classification, and the DNS
+//! check's vetted addresses.
 
 use super::*;
+
+/// Turns an expected rejection into its message, and an unexpected success
+/// into a test failure, without `unwrap_err`.
+trait Rejection {
+    fn rejection(self) -> anyhow::Result<String>;
+}
+
+impl<T: std::fmt::Debug> Rejection for anyhow::Result<T> {
+    fn rejection(self) -> anyhow::Result<String> {
+        match self {
+            Ok(value) => anyhow::bail!("expected a rejection, got {value:?}"),
+            Err(err) => Ok(err.to_string()),
+        }
+    }
+}
 
 #[test]
 fn normalize_domain_strips_scheme_path_and_case() -> anyhow::Result<()> {
@@ -42,8 +58,7 @@ fn validate_accepts_subdomain() {
 #[test]
 fn validate_rejects_allowlist_miss() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
-    let err = validate_url("https://google.com", &allow)
-        .rejection()?;
+    let err = validate_url("https://google.com", &allow).rejection()?;
     assert!(err.contains("allowed websites"));
     Ok(())
 }
@@ -76,8 +91,7 @@ fn validate_wildcard_still_blocks_local_and_private() -> anyhow::Result<()> {
 #[test]
 fn validate_rejects_localhost() -> anyhow::Result<()> {
     let allow = vec!["localhost".to_string()];
-    let err = validate_url("https://localhost:8080", &allow)
-        .rejection()?;
+    let err = validate_url("https://localhost:8080", &allow).rejection()?;
     assert!(err.contains("local/private"));
     Ok(())
 }
@@ -85,8 +99,7 @@ fn validate_rejects_localhost() -> anyhow::Result<()> {
 #[test]
 fn validate_rejects_private_ipv4() -> anyhow::Result<()> {
     let allow = vec!["192.168.1.5".to_string()];
-    let err = validate_url("https://192.168.1.5", &allow)
-        .rejection()?;
+    let err = validate_url("https://192.168.1.5", &allow).rejection()?;
     assert!(err.contains("local/private"));
     Ok(())
 }
@@ -94,8 +107,7 @@ fn validate_rejects_private_ipv4() -> anyhow::Result<()> {
 #[test]
 fn validate_rejects_whitespace() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
-    let err = validate_url("https://example.com/hello world", &allow)
-        .rejection()?;
+    let err = validate_url("https://example.com/hello world", &allow).rejection()?;
     assert!(err.contains("whitespace"));
     Ok(())
 }
@@ -103,8 +115,7 @@ fn validate_rejects_whitespace() -> anyhow::Result<()> {
 #[test]
 fn validate_rejects_userinfo() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
-    let err = validate_url("https://user@example.com", &allow)
-        .rejection()?;
+    let err = validate_url("https://user@example.com", &allow).rejection()?;
     assert!(err.contains("userinfo"));
     Ok(())
 }
@@ -121,12 +132,10 @@ fn validate_empty_allowlist_allows_public_host() {
 
 #[test]
 fn validate_empty_allowlist_still_blocks_private_hosts() -> anyhow::Result<()> {
-    let err = validate_url("https://192.168.1.5", &[])
-        .rejection()?;
+    let err = validate_url("https://192.168.1.5", &[]).rejection()?;
     assert!(err.contains("local/private"));
 
-    let err = validate_url("https://localhost", &[])
-        .rejection()?;
+    let err = validate_url("https://localhost", &[]).rejection()?;
     assert!(err.contains("local/private"));
     Ok(())
 }
@@ -221,8 +230,7 @@ async fn dns_check_resolver_returning_no_addresses_is_a_refusal() -> anyhow::Res
 #[test]
 fn validate_rejects_ftp_scheme() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
-    let err = validate_url("ftp://example.com", &allow)
-        .rejection()?;
+    let err = validate_url("ftp://example.com", &allow).rejection()?;
     assert!(err.contains("http://") || err.contains("https://"));
     Ok(())
 }
@@ -238,8 +246,7 @@ fn validate_rejects_empty_url() -> anyhow::Result<()> {
 #[test]
 fn validate_rejects_ipv6_host() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
-    let err = validate_url("http://[::1]:8080/path", &allow)
-        .rejection()?;
+    let err = validate_url("http://[::1]:8080/path", &allow).rejection()?;
     assert!(err.contains("IPv6"));
     Ok(())
 }
@@ -606,8 +613,7 @@ fn validate_rejects_backslash_authority_smuggling() -> anyhow::Result<()> {
 
 #[test]
 fn validate_rejects_backslash_anywhere() -> anyhow::Result<()> {
-    let err = validate_url("https://example.com/a\\b", &[])
-        .rejection()?;
+    let err = validate_url("https://example.com/a\\b", &[]).rejection()?;
     assert!(err.contains("backslash"), "got: {err}");
     Ok(())
 }
@@ -622,12 +628,10 @@ fn extract_host_and_port_reject_backslash() {
 #[test]
 fn validate_rejects_percent_encoded_host() -> anyhow::Result<()> {
     // WHATWG percent-decodes the host, so this is 127.0.0.1 on the wire.
-    let err = validate_url("http://%31%32%37.0.0.1/", &[])
-        .rejection()?;
+    let err = validate_url("http://%31%32%37.0.0.1/", &[]).rejection()?;
     assert!(err.contains("percent-encoded"), "got: {err}");
     let allow = vec!["example.com".to_string()];
-    let err = validate_url("http://evil%2eexample.com/", &allow)
-        .rejection()?;
+    let err = validate_url("http://evil%2eexample.com/", &allow).rejection()?;
     assert!(err.contains("percent-encoded"), "got: {err}");
     Ok(())
 }
@@ -675,8 +679,7 @@ async fn dns_check_returns_exactly_the_vetted_addresses() -> anyhow::Result<()> 
 #[tokio::test]
 async fn dns_check_pins_an_ip_literal_host_to_itself() -> anyhow::Result<()> {
     // IP literals skip DNS entirely, so this stays network-free.
-    let got = validate_url_with_dns_check("http://93.184.216.34/page", &[])
-        .await?;
+    let got = validate_url_with_dns_check("http://93.184.216.34/page", &[]).await?;
     assert_eq!(got.host, "93.184.216.34");
     assert_eq!(got.addrs, vec!["93.184.216.34:80".parse()?]);
     Ok(())
