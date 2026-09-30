@@ -1,7 +1,7 @@
 //! Tests for read/write tracking, staleness checks, and path locks.
 
 use crate::file_state::{FileStateCoordinator, ReadStamp};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::Mutex;
@@ -227,15 +227,15 @@ fn sibling_write_during_an_in_flight_read_is_reported_stale() {
 fn parent_read_then_two_child_writes(coord: &FileStateCoordinator, path: &Path) {
     coord.record_read(
         "parent",
-        path.clone(),
+        path.to_path_buf(),
         SystemTime::now(),
         false,
         Instant::now(),
     );
     std::thread::sleep(Duration::from_millis(2));
-    coord.record_write("child-1", path.clone());
+    coord.record_write("child-1", path.to_path_buf());
     std::thread::sleep(Duration::from_millis(2));
-    coord.record_write("child-2", path.clone());
+    coord.record_write("child-2", path.to_path_buf());
 }
 
 #[test]
