@@ -25,8 +25,8 @@
 //!    [`Tool`] contract for a multi-action tool: [`Tool::permission_level`] is
 //!    the *minimum* any member requires ([`minimum_permission`]), so a caller
 //!    who may run the read-only half is not statically shut out of the whole
-//!    tool, and [`Tool::external_effect`] is `true` if any member's is
-//!    ([`any_external_effect`]). The enforcement points are the
+//!    tool, and [`Tool::external_effect`] is `true` for any non-empty family
+//!    ([`any_external_effect`]), since a member may classify per call. The enforcement points are the
 //!    argument-aware variants, and those delegate to the member the call
 //!    selects — [`permission_for_args`] and [`external_effect_for_action`] — so
 //!    a member that classifies per call keeps doing so behind the collapse.
@@ -277,8 +277,18 @@ fn rewrite_local_refs(value: &mut Value, action: &str) {
                     }
                 }
             }
+            // Draft-07 dependencies can be schemas or property-name lists.
+            // Only schema-valued entries contain references to rewrite.
+            if let Some(Value::Object(dependencies)) = object.get_mut("dependencies") {
+                for dependency in dependencies.values_mut() {
+                    if dependency.is_object() {
+                        rewrite_local_refs(dependency, action);
+                    }
+                }
+            }
             for key in [
                 "additionalProperties",
+                "additionalItems",
                 "unevaluatedProperties",
                 "propertyNames",
                 "items",
@@ -392,7 +402,7 @@ pub fn permission_for_args(actions: &[CollapsedAction<'_>], args: &Value) -> Per
     }
 }
 
-/// `true` when any member has an external effect.
+/// `true` for any non-empty family, whatever the members' static answers.
 ///
 /// The conservative argument-free answer: `true` whenever the family has a
 /// member, because this form cannot inspect call arguments.

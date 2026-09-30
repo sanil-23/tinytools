@@ -534,6 +534,45 @@ fn refs_inside_prefix_items_are_rewritten() {
 }
 
 #[test]
+fn draft_07_additional_items_and_schema_dependencies_rewrite_refs() {
+    let tool = stub(
+        "read",
+        json!({
+            "properties": {
+                "tuple": {
+                    "items": [{"type": "string"}],
+                    "additionalItems": {"$ref": "#/definitions/Extra"},
+                    "dependencies": {
+                        "other": {"$ref": "#/$defs/Extra"},
+                        "legacy": ["name"]
+                    }
+                }
+            },
+            "definitions": {"Extra": {"type": "integer"}}
+        }),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let actions = vec![CollapsedAction {
+        action: "read",
+        tool: &tool,
+    }];
+
+    let merged = merge_action_schemas(&actions);
+    let definition = namespace_definition("read", "Extra");
+    let tuple = &merged["properties"]["tuple"];
+    assert_eq!(
+        tuple["additionalItems"]["$ref"],
+        format!("#/$defs/{definition}")
+    );
+    assert_eq!(
+        tuple["dependencies"]["other"]["$ref"],
+        format!("#/$defs/{definition}")
+    );
+    assert_eq!(tuple["dependencies"]["legacy"], json!(["name"]));
+}
+
+#[test]
 fn member_definition_namespaces_cannot_collide() {
     let read_file = stub(
         "read_file",
