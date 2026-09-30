@@ -648,3 +648,5 @@ mod config_test;
 mod render_test;
 #[cfg(test)]
 mod test;
+#[cfg(test)]
+mod ops_test;
