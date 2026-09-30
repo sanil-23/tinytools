@@ -325,7 +325,7 @@ fn the_per_call_external_effect_reaches_a_member_that_classifies_per_call() {
         action: "aware",
         tool: &aware,
     }];
-    assert!(!any_external_effect(&actions));
+    assert!(any_external_effect(&actions));
     assert!(external_effect_for_args(
         &actions,
         &json!({"action": "aware", "send": true})

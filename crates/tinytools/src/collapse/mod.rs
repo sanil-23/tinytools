@@ -28,7 +28,7 @@
 //!    tool, and [`Tool::external_effect`] is `true` if any member's is
 //!    ([`any_external_effect`]). The enforcement points are the
 //!    argument-aware variants, and those delegate to the member the call
-//!    selects — [`permission_for_args`] and [`external_effect_for_args`] — so
+//!    selects — [`permission_for_args`] and [`external_effect_for_action`] — so
 //!    a member that classifies per call keeps doing so behind the collapse.
 //!    A call whose action resolves to no member falls back to the strictest
 //!    answer, even though it will fail before any member runs.
@@ -365,12 +365,18 @@ pub fn permission_for_args(actions: &[CollapsedAction<'_>], args: &Value) -> Per
 
 /// `true` when any member has an external effect.
 ///
-/// The answer for the argument-free [`Tool::external_effect`]. It sees only
-/// the members' own argument-free answers, so a host's approval gate must use
-/// [`external_effect_for_args`], which reaches members that classify per call.
+/// The conservative argument-free answer: `true` whenever the family has a
+/// member, because this form cannot inspect call arguments.
 #[must_use]
 pub fn any_external_effect(actions: &[CollapsedAction<'_>]) -> bool {
-    actions.iter().any(|entry| entry.tool.external_effect())
+    !actions.is_empty()
+}
+
+/// Resolve the selected member's external-effect classification for a call.
+/// Missing or unknown actions use the conservative [`any_external_effect`].
+#[must_use]
+pub fn external_effect_for_action(actions: &[CollapsedAction<'_>], args: &Value) -> bool {
+    external_effect_for_args(actions, args)
 }
 
 /// The answer for [`Tool::external_effect_with_args`]: the selected member's

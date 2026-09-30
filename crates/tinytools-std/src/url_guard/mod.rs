@@ -123,6 +123,20 @@ pub struct ValidatedUrl {
     pub addrs: Vec<SocketAddr>,
 }
 
+impl ValidatedUrl {
+    /// The validated URL, retaining its hostname as the request authority.
+    #[must_use]
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+
+    /// Vetted connection destinations to pin the HTTP client to.
+    #[must_use]
+    pub fn addresses(&self) -> &[SocketAddr] {
+        &self.addrs
+    }
+}
+
 /// Like [`validate_url`] but also resolves the hostname via DNS and
 /// verifies that none of the resolved IPs are private/local.
 ///
