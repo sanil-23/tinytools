@@ -1,0 +1,194 @@
+//! A small, self-contained [`FsGate`] for the filesystem tools' unit tests.
+//!
+//! It models just enough of a host policy to exercise the tools: an autonomy
+//! tier, an action budget, an approval flag, and a set of allowed roots that
+//! paths must resolve into. It is *not* a copy of any host's policy; the
+//! host's own semantics are tested in the host, through its adapter.
+
+#![allow(clippy::expect_used, clippy::unwrap_used, missing_docs, unreachable_pub)]
+
+use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use async_trait::async_trait;
+
+use super::gate::FsGate;
+
+/// Prefix the fake puts on refusals a real host would mark as policy-blocked.
+pub const POLICY_BLOCKED_MARKER: &str = "[policy-blocked]";
+
+/// Autonomy tier of the fake gate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AutonomyLevel {
+    /// Nothing that changes state may run.
+    ReadOnly,
+    /// Writes ask for approval.
+    Supervised,
+    /// Writes run unprompted.
+    Full,
+}
+
+/// A fake host policy.
+#[derive(Debug)]
+pub struct TestGate {
+    autonomy: AutonomyLevel,
+    action_dir: PathBuf,
+    roots: Vec<PathBuf>,
+    max_actions: usize,
+    used: AtomicUsize,
+}
+
+impl TestGate {
+    /// Supervised gate whose only root is `dir`.
+    pub fn supervised(dir: PathBuf) -> Arc<Self> {
+        Self::with(dir, AutonomyLevel::Supervised, 1_000_000)
+    }
+
+    /// Gate over `dir` with an explicit tier and action budget.
+    pub fn with(dir: PathBuf, autonomy: AutonomyLevel, max_actions: usize) -> Arc<Self> {
+        Arc::new(Self {
+            autonomy,
+            roots: vec![dir.clone()],
+            action_dir: dir,
+            max_actions,
+            used: AtomicUsize::new(0),
+        })
+    }
+
+    /// Supervised gate resolving relative paths against `action_dir`, with
+    /// `extra_roots` also readable and writable.
+    pub fn split(action_dir: PathBuf, extra_roots: Vec<PathBuf>) -> Arc<Self> {
+        let mut roots = vec![action_dir.clone()];
+        roots.extend(extra_roots);
+        Arc::new(Self {
+            autonomy: AutonomyLevel::Supervised,
+            roots,
+            action_dir,
+            max_actions: 1_000_000,
+            used: AtomicUsize::new(0),
+        })
+    }
+
+    fn full_path(&self, path: &str) -> PathBuf {
+        if Path::new(path).is_absolute() {
+            PathBuf::from(path)
+        } else {
+            self.action_dir.join(path)
+        }
+    }
+
+    /// Canonicalize the deepest existing ancestor of `full` and test it
+    /// against the roots, so a symlink out of a root is caught.
+    fn resolved_inside_roots(&self, full: &Path) -> bool {
+        let mut existing = full.to_path_buf();
+        while !existing.exists() {
+            match existing.parent() {
+                Some(parent) => existing = parent.to_path_buf(),
+                None => return false,
+            }
+        }
+        let Ok(canonical) = existing.canonicalize() else {
+            return false;
+        };
+        self.roots.iter().any(|root| {
+            root.canonicalize()
+                .map(|root| canonical.starts_with(root))
+                .unwrap_or(false)
+        })
+    }
+
+    fn blocked(path: &str) -> String {
+        format!(
+            "{POLICY_BLOCKED_MARKER} Path not allowed by security policy: {path}. Do not retry \
+             this path; use an allowed location (the workspace or a granted folder)."
+        )
+    }
+}
+
+#[async_trait]
+impl FsGate for TestGate {
+    fn can_act(&self) -> bool {
+        self.autonomy != AutonomyLevel::ReadOnly
+    }
+
+    fn is_read_only(&self) -> bool {
+        self.autonomy == AutonomyLevel::ReadOnly
+    }
+
+    fn is_rate_limited(&self) -> bool {
+        self.used.load(Ordering::SeqCst) >= self.max_actions
+    }
+
+    fn record_action(&self) -> bool {
+        self.used.fetch_add(1, Ordering::SeqCst) < self.max_actions
+    }
+
+    fn write_needs_approval(&self) -> bool {
+        self.autonomy == AutonomyLevel::Supervised
+    }
+
+    fn action_dir(&self) -> &Path {
+        &self.action_dir
+    }
+
+    fn is_path_string_allowed(&self, path: &str) -> bool {
+        if path.contains('\0') {
+            return false;
+        }
+        let candidate = Path::new(path);
+        if candidate
+            .components()
+            .any(|component| component == Component::ParentDir)
+        {
+            return false;
+        }
+        self.resolved_inside_roots(&self.full_path(path))
+    }
+
+    async fn validate_path(&self, path: &str) -> Result<PathBuf, String> {
+        if !self.is_path_string_allowed(path) {
+            return Err(Self::blocked(path));
+        }
+        tokio::fs::canonicalize(self.full_path(path))
+            .await
+            .map_err(|e| format!("Failed to resolve path '{path}': {e}"))
+    }
+
+    async fn validate_parent_path(&self, path: &str) -> Result<PathBuf, String> {
+        if !self.is_path_string_allowed(path) {
+            return Err(Self::blocked(path));
+        }
+        let full = self.full_path(path);
+        let parent = full
+            .parent()
+            .ok_or_else(|| format!("Invalid path (no parent): {path}"))?;
+        let file_name = full
+            .file_name()
+            .ok_or_else(|| format!("Invalid path (no filename): {path}"))?;
+        let mut existing = parent.to_path_buf();
+        while !existing.exists() {
+            match existing.parent() {
+                Some(next) => existing = next.to_path_buf(),
+                None => break,
+            }
+        }
+        let canonical = tokio::fs::canonicalize(&existing)
+            .await
+            .map_err(|e| format!("Failed to resolve parent of '{path}': {e}"))?;
+        let suffix = parent.strip_prefix(&existing).unwrap_or(Path::new(""));
+        Ok(canonical.join(suffix).join(file_name))
+    }
+
+    fn scoped_to_workspace(&self, root: &Path) -> Arc<dyn FsGate> {
+        let mut roots = self.roots.clone();
+        roots.push(root.to_path_buf());
+        Arc::new(Self {
+            autonomy: self.autonomy,
+            action_dir: root.to_path_buf(),
+            roots,
+            max_actions: self.max_actions,
+            used: AtomicUsize::new(self.used.load(Ordering::SeqCst)),
+        })
+    }
+}
