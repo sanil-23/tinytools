@@ -48,7 +48,11 @@ async fn system_dns_resolves_numeric_loopback_without_external_network() {
         .expect("numeric loopback resolution is local and deterministic");
     assert_eq!(
         resolved,
-        vec!["127.0.0.1".parse().expect("valid IPv4 literal")]
+        vec![
+            "127.0.0.1"
+                .parse::<std::net::IpAddr>()
+                .expect("valid IPv4 literal")
+        ]
     );
     assert!(super::resolve_host_ips(String::new(), 80).await.is_err());
 }
