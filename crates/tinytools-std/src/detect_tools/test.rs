@@ -30,7 +30,7 @@ fn name_and_permission() {
 
 #[test]
 fn default_and_metadata_contracts_are_available() {
-    let tool = DetectToolsTool::default();
+    let tool = <DetectToolsTool as Default>::default();
     assert!(tool.description().contains("PATH"));
     assert_eq!(
         tool.parameters_schema()["properties"]["tools"]["type"],
