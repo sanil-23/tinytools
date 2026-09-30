@@ -23,7 +23,7 @@ use tinytools::ToolRunContext;
 /// All methods take `&self`; an implementation that counts actions keeps that
 /// state behind interior mutability.
 #[async_trait]
-pub trait FsGate: Send + Sync {
+pub trait FsGate: std::fmt::Debug + Send + Sync {
     /// Whether the host permits the agent to change anything at all right now.
     ///
     /// `false` blocks every mutating tool before it touches the disk.
