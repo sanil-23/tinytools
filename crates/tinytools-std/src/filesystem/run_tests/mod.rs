@@ -14,6 +14,7 @@ pub struct RunTestsTool {
 
 impl RunTestsTool {
     #[must_use]
+    /// Create the tool.
     pub fn new(workspace_dir: PathBuf) -> Self {
         Self { workspace_dir }
     }

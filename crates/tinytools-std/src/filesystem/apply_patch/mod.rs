@@ -34,6 +34,8 @@ pub struct ApplyPatchTool {
 }
 
 impl ApplyPatchTool {
+    /// Create the tool.
+    #[must_use]
     pub fn new(gate: Arc<dyn FsGate>) -> Self {
         Self { gate }
     }

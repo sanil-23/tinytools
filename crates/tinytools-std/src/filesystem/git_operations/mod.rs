@@ -22,6 +22,8 @@ pub struct GitOperationsTool {
 }
 
 impl GitOperationsTool {
+    /// Create the tool.
+    #[must_use]
     pub fn new(gate: Arc<dyn FsGate>, action_dir: PathBuf) -> Self {
         Self { gate, action_dir }
     }

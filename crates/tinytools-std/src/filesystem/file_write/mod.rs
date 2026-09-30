@@ -17,6 +17,8 @@ pub struct FileWriteTool {
 }
 
 impl FileWriteTool {
+    /// Create the tool.
+    #[must_use]
     pub fn new(gate: Arc<dyn FsGate>) -> Self {
         Self {
             gate,

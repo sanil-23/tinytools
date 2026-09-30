@@ -147,6 +147,7 @@ pub struct UpdateMemoryMdTool {
 
 impl UpdateMemoryMdTool {
     #[must_use]
+    /// Create the tool.
     pub fn new(workspace_dir: PathBuf) -> Self {
         Self { workspace_dir }
     }

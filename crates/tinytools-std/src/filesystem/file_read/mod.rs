@@ -25,6 +25,8 @@ impl FileReadTool {
     /// through it (a persisted tool-result artifact) has to fit.
     pub const MAX_FILE_SIZE_BYTES: u64 = MAX_FILE_SIZE_BYTES;
 
+    /// Create the tool.
+    #[must_use]
     pub fn new(gate: Arc<dyn FsGate>) -> Self {
         Self { gate }
     }
