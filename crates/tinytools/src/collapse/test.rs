@@ -30,8 +30,8 @@ impl Tool for Stub {
     fn external_effect(&self) -> bool {
         self.external
     }
-    fn external_effect_with_args(&self, _args: &Value) -> bool {
-        self.external
+    fn external_effect_with_args(&self, args: &Value) -> bool {
+        self.external || args["outbound"] == true
     }
     async fn execute(&self, _args: Value) -> anyhow::Result<ToolResult> {
         Ok(ToolResult::success("ok"))
@@ -200,6 +200,10 @@ fn action_effect_resolution_uses_member_arguments_and_static_fallback_is_safe() 
     assert!(!external_effect_for_action(
         &actions,
         &json!({"action": "c"})
+    ));
+    assert!(external_effect_for_action(
+        &actions,
+        &json!({"action": "c", "outbound": true})
     ));
     assert!(external_effect_for_action(
         &actions,

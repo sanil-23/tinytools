@@ -167,7 +167,11 @@ pub fn strictest_permission(actions: &[CollapsedAction<'_>]) -> PermissionLevel 
         .unwrap_or(PermissionLevel::None)
 }
 
-/// `true` when any member has an external effect.
+/// Conservative argument-less answer: `true` whenever the family has a member.
+///
+/// The trait has no argument-less way to detect argument-dependent effects, so
+/// a collapsed family cannot safely claim `false` here. Hosts should use
+/// [`external_effect_for_action`] to get the exact per-call answer.
 #[must_use]
 pub fn any_external_effect(actions: &[CollapsedAction<'_>]) -> bool {
     // The static answer has no arguments to discriminate with. Conservatively
