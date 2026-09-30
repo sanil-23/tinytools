@@ -185,3 +185,13 @@ fn strip_trailing_commas_keeps_layout_and_multibyte_text_intact() {
         "{\"a\": \"é,}\", \"b\": \"日本\"}"
     );
 }
+
+#[test]
+fn strip_trailing_commas_handles_nested_arrays_and_objects_and_string_commas() {
+    assert_eq!(
+        strip_trailing_commas("{ \"a\": 1, \"b\": [1, 2,], }"),
+        "{ \"a\": 1, \"b\": [1, 2] }"
+    );
+    let src = "{ \"reason\": \"a, b, c,\" }";
+    assert_eq!(strip_trailing_commas(src), src);
+}
