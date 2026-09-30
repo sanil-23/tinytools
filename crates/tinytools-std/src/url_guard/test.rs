@@ -25,6 +25,35 @@ fn normalize_domain_strips_scheme_path_and_case() {
 }
 
 #[test]
+fn normalizes_http_domains_and_rejects_empty_hosts() {
+    assert_eq!(
+        normalize_domain("http://Example.com:8080/path"),
+        Some("example.com".into())
+    );
+    assert_eq!(normalize_domain("https://"), None);
+    assert!(extract_host("http:///path").is_err());
+    assert!(extract_host("http://:80/path").is_err());
+}
+
+#[test]
+fn rejects_malformed_ports() {
+    assert!(extract_port("http://example.com:abc").is_err());
+    assert!(extract_port("http://example.com:65536").is_err());
+}
+
+#[tokio::test]
+async fn system_dns_resolves_numeric_loopback_without_external_network() {
+    let resolved = super::resolve_host_ips("127.0.0.1".to_string(), 80)
+        .await
+        .expect("numeric loopback resolution is local and deterministic");
+    assert_eq!(
+        resolved,
+        vec!["127.0.0.1".parse().expect("valid IPv4 literal")]
+    );
+    assert!(super::resolve_host_ips(String::new(), 80).await.is_err());
+}
+
+#[test]
 fn normalize_allowed_domains_deduplicates() {
     let got = normalize_allowed_domains(vec![
         "example.com".into(),
