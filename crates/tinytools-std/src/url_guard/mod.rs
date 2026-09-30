@@ -41,8 +41,9 @@ use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 ///
 /// # Errors
 ///
-/// Fails when the URL is empty, contains whitespace, is not `http(s)`, names a
-/// local/private host, or (in strict mode) is outside the allowlist.
+/// Fails when the URL is empty, contains whitespace or a backslash, is not
+/// `http(s)`, has percent-encoding in its host, names a local/private host,
+/// or (in strict mode) is outside the allowlist.
 pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result<String> {
     let url = raw_url.trim();
 
