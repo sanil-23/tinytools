@@ -233,7 +233,8 @@ fn shared_property_types_are_exposed_as_schema_alternatives() {
             tool: &number,
         },
     ];
-    let alternatives = merge_action_schemas(&actions)["properties"]["value"]["anyOf"]
+    let schema = merge_action_schemas(&actions);
+    let alternatives = schema["properties"]["value"]["anyOf"]
         .as_array()
         .unwrap()
         .iter()

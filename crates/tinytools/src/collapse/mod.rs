@@ -95,7 +95,7 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
     // the prefix can list every owner, which the first pass does not yet know.
     let mut merged_properties = BTreeMap::new();
     for (name, specs) in properties {
-        let owned_by = owners.get(name).map_or(&[][..], Vec::as_slice);
+        let owned_by = owners.get(&name).map_or(&[][..], Vec::as_slice);
         // A property every action takes needs no prefix — saying so would be
         // noise on every line.
         let needs_prefix = owned_by.len() != actions.len() && !owned_by.is_empty();
