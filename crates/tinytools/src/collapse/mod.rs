@@ -148,34 +148,7 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
 
     let mut properties: BTreeMap<String, Value> = definitions
         .into_iter()
-        .map(|(name, mut specs)| {
-            let spec = if specs.len() == 1 {
-                specs.remove(0).1
-            } else {
-                let alternatives = specs
-                    .into_iter()
-                    .map(|(owners, mut spec)| {
-                        if let Some(object) = spec.as_object_mut() {
-                            let prefix = owners.join("/");
-                            let existing = object
-                                .get("description")
-                                .and_then(Value::as_str)
-                                .unwrap_or_default()
-                                .to_string();
-                            let description = if existing.is_empty() {
-                                prefix
-                            } else {
-                                format!("{prefix}: {existing}")
-                            };
-                            object.insert("description".to_string(), Value::String(description));
-                        }
-                        spec
-                    })
-                    .collect::<Vec<_>>();
-                json!({ "anyOf": alternatives })
-            };
-            (name, spec)
-        })
+        .map(|(name, specs)| (name, merge_property_definitions(specs)))
         .collect();
 
     // Rewrite each description to name its actions. Done in a second pass so
@@ -232,6 +205,35 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
         result["$defs"] = Value::Object(merged_defs);
     }
     result
+}
+
+/// Merge distinct schema definitions, keeping each conflicting definition's
+/// action ownership visible to callers of the combined schema.
+fn merge_property_definitions(mut specs: Vec<(Vec<&str>, Value)>) -> Value {
+    if specs.len() == 1 {
+        return specs.remove(0).1;
+    }
+    let alternatives = specs
+        .into_iter()
+        .map(|(owners, mut spec)| {
+            if let Some(object) = spec.as_object_mut() {
+                let prefix = owners.join("/");
+                let existing = object
+                    .get("description")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                let description = if existing.is_empty() {
+                    prefix
+                } else {
+                    format!("{prefix}: {existing}")
+                };
+                object.insert("description".to_string(), Value::String(description));
+            }
+            spec
+        })
+        .collect::<Vec<_>>();
+    json!({ "anyOf": alternatives })
 }
 
 /// Namespace member-local JSON Schema definitions so merged properties keep
