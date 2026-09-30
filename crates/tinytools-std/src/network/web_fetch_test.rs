@@ -85,7 +85,12 @@ async fn web_fetch_rejects_invalid_url() {
 async fn web_fetch_blocked_under_local_only_privacy_mode() {
     // Privacy epic S7 (#4441): under LocalOnly the fetch is refused with a
     // `[policy-blocked]` result before any URL validation / network.
-        let tool = fetch(test_security(), vec!["example.com".into()], None, None);
+        let tool = fetch(
+        TestNetGate::local_only(),
+        vec!["example.com".into()],
+        None,
+        None,
+    );
     let result = tool
         .execute(json!({ "url": "https://example.com/data" }))
         .await
@@ -116,10 +121,14 @@ fn test_web_fetch_truncation_utf8() {
 
 // --- content extraction ----------------------------------------------------
 
+fn html(body: &str, content_type: Option<&str>) -> bool {
+    is_html(&TestHtml, body, content_type)
+}
+
 #[test]
 fn an_explicit_html_content_type_selects_markdown_conversion() {
-    assert!(is_html("<p>hi</p>", Some("text/html; charset=utf-8")));
-    assert!(is_html("<p>hi</p>", Some("application/xhtml+xml")));
+    assert!(html("<p>hi</p>", Some("text/html; charset=utf-8")));
+    assert!(html("<p>hi</p>", Some("application/xhtml+xml")));
 }
 
 #[test]
@@ -127,22 +136,22 @@ fn an_explicit_non_html_content_type_is_taken_at_its_word() {
     // A JSON API that happens to quote markup must come back verbatim —
     // the server said what it sent, so we don't second-guess it by sniffing.
     let body = r##"{"html": "<div><p>one</p><span>two</span><a href="/x">two</a></div>"}"##;
-    assert!(!is_html(body, Some("application/json")));
-    assert!(!is_html("<p>x</p>", Some("text/plain")));
+    assert!(!html(body, Some("application/json")));
+    assert!(!html("<p>x</p>", Some("text/plain")));
 }
 
 #[test]
 fn a_missing_content_type_falls_back_to_content_detection() {
-    assert!(is_html(
+    assert!(html(
         "<!DOCTYPE html><html><body><p>hi</p></body></html>",
         None
     ));
-    assert!(!is_html("# Just a README\n\nSome prose.\n", None));
+    assert!(!html("# Just a README\n\nSome prose.\n", None));
 }
 
 #[test]
 fn an_empty_content_type_does_not_veto_detection() {
-    assert!(is_html(
+    assert!(html(
         "<!DOCTYPE html><html><body>x</body></html>",
         Some("")
     ));
@@ -174,4 +183,27 @@ fn the_declared_cap_is_sized_for_extracted_markdown_not_raw_markup() {
         "cap should sit in the same range as Hermes (15k chars) and Codex \
          (~10k tokens) budget for one result, got {cap}"
     );
+}
+
+#[test]
+fn html_is_converted_through_the_host_extractor_only_when_it_is_html() {
+    let body = "<!DOCTYPE html><html><body><p>hi</p></body></html>";
+    assert!(html(body, None));
+    assert_eq!(TestHtml.to_markdown(body), "hi");
+}
+
+#[tokio::test]
+async fn execute_blocks_when_rate_limited() {
+    let tool = fetch(
+        TestNetGate::with(crate::network::test_support::AutonomyLevel::Supervised, 0),
+        vec!["example.com".into()],
+        None,
+        None,
+    );
+    let result = tool
+        .execute(json!({ "url": "https://example.com/data" }))
+        .await
+        .unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("Rate limit exceeded"));
 }

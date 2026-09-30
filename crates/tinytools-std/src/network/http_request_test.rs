@@ -217,3 +217,166 @@ fn readonly_http_request_is_not_external_effect_because_execute_blocks() {
         "method": "GET"
     })));
 }
+
+#[tokio::test]
+async fn a_request_discloses_body_and_header_presence_to_the_gate() {
+    // A public IPv4 literal skips DNS; the disallowed method fails after
+    // disclosure, so nothing is ever contacted.
+    let gate = TestNetGate::supervised();
+    let tool = HttpRequestTool::new(
+        gate.clone(),
+        vec!["8.8.8.8".into()],
+        1_000_000,
+        30,
+        DEFAULT_LIMITS,
+    );
+    let result = tool
+        .execute(json!({
+            "url": "https://8.8.8.8/x",
+            "method": "TRACE",
+            "headers": {"Authorization": "Bearer t"},
+            "body": "{}"
+        }))
+        .await
+        .unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("Unsupported HTTP method"));
+    assert_eq!(gate.disclosed(), vec![("8.8.8.8".to_string(), true, true)]);
+}
+
+#[tokio::test]
+async fn a_bare_request_discloses_neither_body_nor_headers() {
+    let gate = TestNetGate::supervised();
+    let tool = HttpRequestTool::new(
+        gate.clone(),
+        vec!["8.8.8.8".into()],
+        1_000_000,
+        30,
+        DEFAULT_LIMITS,
+    );
+    let _ = tool
+        .execute(json!({"url": "https://8.8.8.8/x", "method": "TRACE"}))
+        .await
+        .unwrap();
+    assert_eq!(gate.disclosed(), vec![("8.8.8.8".to_string(), false, false)]);
+}
+
+#[test]
+fn the_host_of_an_unparseable_url_is_unknown() {
+    assert_eq!(super::super::gate::host_of("not a url"), "unknown");
+    assert_eq!(
+        super::super::gate::host_of("https://api.example.com/v1"),
+        "api.example.com"
+    );
+}
+
+/// Serves one canned HTTP response per accepted connection, in order, and
+/// records each request's raw head. Returns the bound address.
+async fn serve(responses: Vec<String>) -> (std::net::SocketAddr, Arc<std::sync::Mutex<Vec<String>>>) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let log = Arc::clone(&seen);
+    tokio::spawn(async move {
+        for response in responses {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = vec![0u8; 8192];
+            let n = socket.read(&mut buf).await.unwrap();
+            log.lock()
+                .unwrap()
+                .push(String::from_utf8_lossy(&buf[..n]).to_string());
+            socket.write_all(response.as_bytes()).await.unwrap();
+            let _ = socket.shutdown().await;
+        }
+    });
+    (addr, seen)
+}
+
+struct RecordingHook {
+    settled: Arc<std::sync::Mutex<Vec<PaymentOutcome>>>,
+    fail: bool,
+}
+
+#[async_trait]
+impl PaymentHook for RecordingHook {
+    async fn pay(
+        &self,
+        _url: &str,
+        response_headers: &reqwest::header::HeaderMap,
+    ) -> Result<PaymentAttempt, String> {
+        if self.fail {
+            return Err("x402 payment failed: no wallet".into());
+        }
+        assert!(response_headers.get("PAYMENT-REQUIRED").is_some());
+        let settled = Arc::clone(&self.settled);
+        Ok(PaymentAttempt {
+            headers: vec![("PAYMENT-SIGNATURE".into(), "sig".into())],
+            settle: Box::new(move |outcome| settled.lock().unwrap().push(outcome)),
+        })
+    }
+}
+
+const PAYMENT_REQUIRED: &str =
+    "HTTP/1.1 402 Payment Required\r\nPAYMENT-REQUIRED: abc\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+
+// Loopback is refused by the SSRF guard, so these drive the private request
+// path directly rather than `execute`.
+#[tokio::test]
+async fn a_402_is_retried_once_with_the_hooks_headers_and_settled() {
+    let ok = "HTTP/1.1 200 OK\r\nPAYMENT-RESPONSE: resp\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok";
+    let (addr, seen) = serve(vec![PAYMENT_REQUIRED.to_string(), ok.to_string()]).await;
+    let settled = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let hook: Arc<dyn PaymentHook> = Arc::new(RecordingHook {
+        settled: Arc::clone(&settled),
+        fail: false,
+    });
+    let tool = test_tool(vec![]);
+    let url = format!("http://{addr}/paid");
+    let first = tool
+        .execute_request(&url, reqwest::Method::GET, vec![("X-A".into(), "1".into())], None)
+        .await
+        .unwrap();
+    assert_eq!(first.status(), reqwest::StatusCode::PAYMENT_REQUIRED);
+
+    let paid = tool
+        .handle_payment_required(&hook, first, &url, reqwest::Method::GET, vec![("X-A".into(), "1".into())], None)
+        .await
+        .unwrap();
+    assert!(paid.status().is_success());
+
+    let requests = seen.lock().unwrap().clone();
+    assert_eq!(requests.len(), 2);
+    assert!(!requests[0].to_ascii_lowercase().contains("payment-signature"));
+    assert!(requests[1].to_ascii_lowercase().contains("payment-signature: sig"));
+    assert!(requests[1].to_ascii_lowercase().contains("x-a: 1"));
+    assert_eq!(
+        *settled.lock().unwrap(),
+        vec![PaymentOutcome {
+            status: 200,
+            success: true,
+            payment_response: Some("resp".into()),
+        }]
+    );
+}
+
+#[tokio::test]
+async fn a_hook_failure_is_returned_as_the_error_without_a_retry() {
+    let (addr, seen) = serve(vec![PAYMENT_REQUIRED.to_string()]).await;
+    let hook: Arc<dyn PaymentHook> = Arc::new(RecordingHook {
+        settled: Arc::default(),
+        fail: true,
+    });
+    let tool = test_tool(vec![]);
+    let url = format!("http://{addr}/paid");
+    let first = tool
+        .execute_request(&url, reqwest::Method::GET, vec![], None)
+        .await
+        .unwrap();
+    let err = tool
+        .handle_payment_required(&hook, first, &url, reqwest::Method::GET, vec![], None)
+        .await
+        .unwrap_err();
+    assert_eq!(err, "x402 payment failed: no wallet");
+    assert_eq!(seen.lock().unwrap().len(), 1);
+}
