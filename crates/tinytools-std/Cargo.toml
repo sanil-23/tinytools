@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Host-independent building blocks for agent tools: cross-agent file staleness tracking, SSRF-safe URL validation, and PATH probing."
+description = "Host-independent building blocks for agent tools: filesystem, git and network tools behind host gates, cross-agent file staleness tracking, SSRF-safe URL validation, and PATH probing."
 documentation = "https://docs.rs/tinytools-std"
 readme = "README.md"
 publish = false
@@ -13,6 +13,10 @@ publish = false
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+# `image_info` base64 data URIs.
+base64 = "0.22"
+# `curl` streams the response body chunk by chunk to disk.
+futures-util = { version = "0.3", default-features = false }
 # Advisory inter-process `flock` around the MEMORY.md read-modify-write.
 fs2 = "0.4"
 # `glob_search` pattern matching.
@@ -25,9 +29,15 @@ log = "0.4"
 parking_lot = "0.12"
 # `grep` pattern compilation.
 regex = { workspace = true }
+# The network tools' HTTP client. rustls only: a host that wants another TLS
+# backend adds it to its own `reqwest` dependency and cargo unifies the features.
+# `stream` drives `curl`'s chunked download; `multipart` builds the `pushover` form.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "multipart"] }
 # Safe effective-credential executable checks for Unix PATH candidates.
 rustix = { version = "1", default-features = false, features = ["fs"] }
 serde_json = { workspace = true }
+# `curl` reports the SHA-256 of what it downloaded.
+sha2 = "0.10"
 tinytools = { path = "../tinytools", version = "0.5.0" }
 # `spawn_blocking` keeps synchronous system DNS resolution off async executor threads;
 # `fs`/`process`/`time` serve the filesystem tools.
