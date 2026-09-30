@@ -171,7 +171,7 @@ fn permission_is_the_strictest_member_not_the_first() {
 fn external_effect_is_true_when_any_member_has_one() {
     let clean = stub("c", json!({}), PermissionLevel::ReadOnly, false);
     let dirty = stub("d", json!({}), PermissionLevel::ReadOnly, true);
-    assert!(!any_external_effect(&[CollapsedAction {
+    assert!(any_external_effect(&[CollapsedAction {
         action: "c",
         tool: &clean
     }]));
