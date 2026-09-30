@@ -102,19 +102,17 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
         let prefix = owned_by.join("/");
         let mut alternatives = Vec::new();
         for (action, mut spec) in specs {
-            if needs_prefix {
-                if let Some(object) = spec.as_object_mut() {
-                    let existing = object
-                        .get("description")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default();
-                    let described = if existing.is_empty() {
-                        format!("{action}: {prefix}")
-                    } else {
-                        format!("{action}: {existing}")
-                    };
-                    object.insert("description".to_string(), Value::String(described));
-                }
+            if needs_prefix && let Some(object) = spec.as_object_mut() {
+                let existing = object
+                    .get("description")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let described = if existing.is_empty() {
+                    format!("{action}: {prefix}")
+                } else {
+                    format!("{action}: {existing}")
+                };
+                object.insert("description".to_string(), Value::String(described));
             }
             if !alternatives.contains(&spec) {
                 alternatives.push(spec);
