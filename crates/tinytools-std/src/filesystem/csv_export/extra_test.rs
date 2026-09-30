@@ -10,8 +10,8 @@ fn tool_in(dir: &TempDir) -> CsvExportTool {
     CsvExportTool::new(TestGate::supervised(dir.path().to_path_buf()))
 }
 
-fn data(v: serde_json::Value) -> String {
-    serde_json::to_string(&v).unwrap()
+fn data(v: &serde_json::Value) -> String {
+    serde_json::to_string(v).unwrap()
 }
 
 #[tokio::test]
@@ -19,7 +19,7 @@ async fn read_only_autonomy_is_refused() {
     let dir = TempDir::new().unwrap();
     let gate = TestGate::with(dir.path().to_path_buf(), AutonomyLevel::ReadOnly, 100);
     let r = CsvExportTool::new(gate)
-        .execute(json!({"data": data(json!([{"a": 1}])), "filename": "x.csv"}))
+        .execute(json!({"data": data(&json!([{"a": 1}])), "filename": "x.csv"}))
         .await
         .unwrap();
     assert!(r.is_error);
@@ -31,7 +31,7 @@ async fn exhausted_hourly_limit_is_refused() {
     let dir = TempDir::new().unwrap();
     let gate = TestGate::with(dir.path().to_path_buf(), AutonomyLevel::Supervised, 0);
     let r = CsvExportTool::new(gate)
-        .execute(json!({"data": data(json!([{"a": 1}])), "filename": "x.csv"}))
+        .execute(json!({"data": data(&json!([{"a": 1}])), "filename": "x.csv"}))
         .await
         .unwrap();
     assert!(r.output().contains("too many actions in the last hour"));
@@ -44,7 +44,7 @@ async fn exhausted_action_budget_is_refused_before_writing() {
         .no_budget()
         .arc();
     let r = CsvExportTool::new(gate)
-        .execute(json!({"data": data(json!([{"a": 1}])), "filename": "x.csv"}))
+        .execute(json!({"data": data(&json!([{"a": 1}])), "filename": "x.csv"}))
         .await
         .unwrap();
     assert!(r.output().contains("action budget exhausted"));
@@ -76,7 +76,7 @@ async fn empty_array_is_reported() {
 async fn a_path_the_gate_refuses_is_reported() {
     let dir = TempDir::new().unwrap();
     let r = tool_in(&dir)
-        .execute(json!({"data": data(json!([{"a": 1}])), "filename": "../escape.csv"}))
+        .execute(json!({"data": data(&json!([{"a": 1}])), "filename": "../escape.csv"}))
         .await
         .unwrap();
     assert!(r.is_error);
@@ -95,7 +95,7 @@ async fn a_symlinked_target_is_refused() {
     )
     .unwrap();
     let r = tool_in(&dir)
-        .execute(json!({"data": data(json!([{"a": 1}])), "filename": "link.csv"}))
+        .execute(json!({"data": data(&json!([{"a": 1}])), "filename": "link.csv"}))
         .await
         .unwrap();
     assert!(r.is_error);
@@ -111,7 +111,7 @@ async fn a_directory_in_the_way_reports_the_write_failure() {
     let dir = TempDir::new().unwrap();
     std::fs::create_dir_all(dir.path().join("exports/out.csv")).unwrap();
     let r = tool_in(&dir)
-        .execute(json!({"data": data(json!([{"a": 1}])), "filename": "out.csv"}))
+        .execute(json!({"data": data(&json!([{"a": 1}])), "filename": "out.csv"}))
         .await
         .unwrap();
     assert!(r.is_error);
@@ -125,14 +125,14 @@ async fn size_labels_scale_to_kb_and_mb() {
         .map(|i| json!({"n": format!("row-{i:04}-padding")}))
         .collect();
     let r = tool_in(&dir)
-        .execute(json!({"data": data(json!(kb_rows)), "filename": "kb.csv"}))
+        .execute(json!({"data": data(&json!(kb_rows)), "filename": "kb.csv"}))
         .await
         .unwrap();
     assert!(r.output().contains(" KB)"), "{}", r.output());
 
     let big = "x".repeat(1024 * 1024 + 10);
     let r = tool_in(&dir)
-        .execute(json!({"data": data(json!([{"blob": big}])), "filename": "mb.csv"}))
+        .execute(json!({"data": data(&json!([{"blob": big}])), "filename": "mb.csv"}))
         .await
         .unwrap();
     assert!(r.output().contains(" MB)"), "{}", r.output());
@@ -151,7 +151,7 @@ async fn execute_with_context_delegates() {
     let dir = TempDir::new().unwrap();
     let r = tool_in(&dir)
         .execute_with_context(
-            json!({"data": data(json!([{"ok": true}])), "filename": "c.csv"}),
+            json!({"data": data(&json!([{"ok": true}])), "filename": "c.csv"}),
             ToolCallOptions::default(),
             None,
         )
