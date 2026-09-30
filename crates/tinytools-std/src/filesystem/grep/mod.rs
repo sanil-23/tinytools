@@ -5,6 +5,7 @@
 //! across the workspace without falling through to `shell`. Uses the
 //! same path-sandboxing + rate-limiting as `file_read`.
 
+use super::gate::{FsGate, gate_for_context};
 use async_trait::async_trait;
 use regex::Regex;
 use serde_json::json;
@@ -209,7 +210,7 @@ fn scan_for_matches(
                 // (CJK / emoji) the rendered line could balloon to ~3×
                 // the intended cap. Per CodeRabbit critical review on
                 // PR #1549.
-                let display_line = crate::util::truncate_at_byte_boundary(line, MAX_LINE_BYTES);
+                let display_line = super::text::truncate_at_byte_boundary(line, MAX_LINE_BYTES);
                 matches.push(format!("{}:{}:{}", rel.display(), lineno + 1, display_line));
                 if matches.len() >= max_matches {
                     truncated = true;

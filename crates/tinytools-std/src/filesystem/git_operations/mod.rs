@@ -1,3 +1,4 @@
+use super::gate::FsGate;
 use async_trait::async_trait;
 use serde_json::json;
 use std::path::{Path, PathBuf};
@@ -5,6 +6,10 @@ use std::sync::Arc;
 use tinytools::ToolRunContext;
 use tinytools::{Tool, ToolCallOptions, ToolResult};
 
+mod config;
+mod render;
+
+pub use self::config::shell_git_env;
 use self::config::{
     disallowed_config_refusal, first_disallowed_repo_config_key, hardened_git,
 };

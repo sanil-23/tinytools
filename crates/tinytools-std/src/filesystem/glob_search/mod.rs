@@ -23,6 +23,7 @@
 //! — it is resolved through `validate_path`, so it can never widen access
 //! beyond what the readers already permit.
 
+use super::gate::{FsGate, gate_for_context};
 use async_trait::async_trait;
 use glob::Pattern;
 use serde_json::json;
