@@ -41,7 +41,10 @@ use std::collections::{BTreeMap, HashSet};
 
 use serde_json::{Map, Value, json};
 
-use crate::{PermissionLevel, Tool};
+use crate::PermissionLevel;
+// Only named in the docs: the module's contract is stated against it.
+#[cfg(doc)]
+use crate::Tool;
 
 mod types;
 
