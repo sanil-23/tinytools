@@ -293,3 +293,50 @@ async fn execute_with_base64() {
 
     let _ = tokio::fs::remove_dir_all(&dir).await;
 }
+
+#[test]
+fn truncated_headers_yield_no_dimensions() {
+    for format in ["png", "gif", "bmp"] {
+        assert_eq!(
+            ImageInfoTool::extract_dimensions(&[0u8; 5], format),
+            None,
+            "{format}"
+        );
+    }
+}
+
+#[test]
+fn jpeg_dimension_scan_rejects_bad_structure() {
+    // A non-0xFF byte where a marker should be.
+    assert_eq!(
+        ImageInfoTool::extract_dimensions(&[0xFF, 0xD8, 0x00, 0x00], "jpeg"),
+        None
+    );
+    // SOF marker with too few bytes after it.
+    assert_eq!(
+        ImageInfoTool::extract_dimensions(&[0xFF, 0xD8, 0xFF, 0xC0, 0, 0], "jpeg"),
+        None
+    );
+    // A skippable marker with no length bytes left.
+    assert_eq!(
+        ImageInfoTool::extract_dimensions(&[0xFF, 0xD8, 0xFF, 0xE0], "jpeg"),
+        None
+    );
+    // A well-formed segment that runs out before any SOF marker.
+    assert_eq!(
+        ImageInfoTool::extract_dimensions(&[0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x02], "jpeg"),
+        None
+    );
+}
+
+#[tokio::test]
+async fn execute_on_a_directory_reports_a_read_failure() {
+    let dir = std::env::temp_dir().join("tinytools_image_info_dir_test");
+    tokio::fs::create_dir_all(&dir).await.unwrap();
+    let tool = ImageInfoTool::new(test_security());
+    let err = tool
+        .execute(json!({"path": dir.to_string_lossy()}))
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Failed to read image file"));
+}
