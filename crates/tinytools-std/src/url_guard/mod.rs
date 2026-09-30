@@ -31,6 +31,11 @@ use std::net::{IpAddr, ToSocketAddrs};
 
 /// Validate a URL against the allowlist + SSRF rules. Returns the
 /// original URL on success.
+///
+/// # Errors
+///
+/// Fails when the URL is empty, contains whitespace, is not `http(s)`, names a
+/// local/private host, or (in strict mode) is outside the allowlist.
 pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result<String> {
     let url = raw_url.trim();
 
@@ -96,6 +101,11 @@ pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result
 ///
 /// Callers should use this function instead of `validate_url` in all
 /// paths that make outbound HTTP requests.
+///
+/// # Errors
+///
+/// Everything [`validate_url`] rejects, plus DNS failure, an empty answer, or
+/// any resolved address that is private/local.
 pub async fn validate_url_with_dns_check(
     raw_url: &str,
     allowed_domains: &[String],
@@ -164,6 +174,8 @@ async fn resolve_host_ips(host: String, port: u16) -> anyhow::Result<Vec<IpAddr>
 }
 
 #[must_use]
+/// Normalise an allowlist: strip scheme/path, lowercase, drop invalid entries and
+/// duplicates. An empty result means open mode.
 pub fn normalize_allowed_domains(domains: Vec<String>) -> Vec<String> {
     if domains.is_empty() {
         return Vec::new();
@@ -188,6 +200,7 @@ pub fn normalize_allowed_domains(domains: Vec<String>) -> Vec<String> {
     normalized
 }
 
+/// Normalise one allowlist entry to a bare lowercase host, or `None` if invalid.
 pub fn normalize_domain(raw: &str) -> Option<String> {
     let mut d = raw.trim().to_lowercase();
     if d.is_empty() {
@@ -217,6 +230,11 @@ pub fn normalize_domain(raw: &str) -> Option<String> {
     Some(d)
 }
 
+/// Extract the host part of an `http(s)` URL.
+///
+/// # Errors
+///
+/// Fails on a missing/empty host, userinfo, or an IPv6 literal.
 pub fn extract_host(url: &str) -> anyhow::Result<String> {
     let rest = url
         .strip_prefix("http://")
@@ -255,6 +273,11 @@ pub fn extract_host(url: &str) -> anyhow::Result<String> {
     Ok(host)
 }
 
+/// Extract the explicit or scheme-default port of an `http(s)` URL.
+///
+/// # Errors
+///
+/// Fails when the URL has no valid port.
 pub fn extract_port(url: &str) -> anyhow::Result<u16> {
     let is_http = url.starts_with("http://");
     let rest = url
@@ -284,6 +307,7 @@ pub fn extract_port(url: &str) -> anyhow::Result<u16> {
 }
 
 #[must_use]
+/// Whether `host` equals, or is a subdomain of, an allowlist entry.
 pub fn host_matches_allowlist(host: &str, allowed_domains: &[String]) -> bool {
     allowed_domains.iter().any(|domain| {
         // `"*"` is the explicit allow-all wildcard (the "Allow all sites"
@@ -299,6 +323,7 @@ pub fn host_matches_allowlist(host: &str, allowed_domains: &[String]) -> bool {
 }
 
 #[must_use]
+/// Whether `host` is a local name or resolves lexically to a non-global address.
 pub fn is_private_or_local_host(host: &str) -> bool {
     let unbracketed = host
         .strip_prefix('[')
@@ -328,6 +353,7 @@ pub fn is_private_or_local_host(host: &str) -> bool {
 }
 
 #[must_use]
+/// Whether an IPv4 address is non-global (loopback, private, link-local, ...).
 pub fn is_non_global_v4(v4: std::net::Ipv4Addr) -> bool {
     let [a, b, c, _] = v4.octets();
     v4.is_loopback()
@@ -349,6 +375,7 @@ pub fn is_non_global_v4(v4: std::net::Ipv4Addr) -> bool {
         || a == 0
 }
 
+/// Whether an IPv6 address is non-global (loopback, ULA, link-local, mapped, ...).
 pub fn is_non_global_v6(v6: std::net::Ipv6Addr) -> bool {
     let segs = v6.segments();
     v6.is_loopback()

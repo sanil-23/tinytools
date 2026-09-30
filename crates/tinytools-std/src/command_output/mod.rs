@@ -86,11 +86,7 @@ pub fn command_failure(exit_code: Option<i32>, stdout: &str, stderr: &str) -> To
 /// than the literal `exit code -1`.
 #[must_use]
 pub fn sandbox_exit_code(code: i32) -> Option<i32> {
-    if code < 0 {
-        None
-    } else {
-        Some(code)
-    }
+    if code < 0 { None } else { Some(code) }
 }
 
 #[cfg(test)]

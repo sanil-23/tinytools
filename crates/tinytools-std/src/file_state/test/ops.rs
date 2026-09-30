@@ -1,5 +1,5 @@
-use crate::file_state::{FileStateCoordinator, ReadStamp};
 use crate::file_state::types::WriteStamp;
+use crate::file_state::{FileStateCoordinator, ReadStamp};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
@@ -160,4 +160,37 @@ async fn path_lock_serialises_access() {
     assert!(mutex.try_lock().is_err());
     drop(guard);
     assert!(mutex.try_lock().is_ok());
+}
+
+#[tokio::test]
+async fn global_api_tracks_reads_writes_and_locks() {
+    use crate::file_state::{
+        acquire_path_lock, check_partial_read, check_stale_read, init_global, parent_stale_files,
+        record_read, record_write, try_global,
+    };
+
+    init_global(false);
+    init_global(true);
+    assert!(try_global().is_some());
+
+    let path = PathBuf::from("/tmp/test/global-flow.txt");
+    record_read("reader", path.clone(), SystemTime::now(), true);
+    assert!(check_partial_read("reader", &path).is_some());
+    assert!(check_stale_read("reader", &path).is_none());
+
+    record_read("reader", path.clone(), SystemTime::now(), false);
+    assert!(check_partial_read("reader", &path).is_none());
+
+    std::thread::sleep(Duration::from_millis(5));
+    record_write("writer", path.clone());
+    let msg = check_stale_read("reader", &path).expect("stale after sibling write");
+    assert!(msg.contains("writer"));
+    assert_eq!(
+        parent_stale_files("reader", &["writer".to_string()]),
+        vec![path.clone()]
+    );
+    assert!(check_stale_read("writer", &path).is_none());
+
+    let guard = acquire_path_lock(&path).await;
+    assert!(guard.is_some());
 }

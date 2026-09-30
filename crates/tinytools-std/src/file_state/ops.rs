@@ -158,12 +158,13 @@ pub fn parent_stale_files(parent_agent_id: &str, child_agent_ids: &[String]) -> 
             continue;
         }
         if let Some(ws) = writes.get(path)
-            && child_agent_ids.contains(&ws.writer) && ws.timestamp > read_stamp.timestamp {
-                stale.push(path.clone());
-            }
+            && child_agent_ids.contains(&ws.writer)
+            && ws.timestamp > read_stamp.timestamp
+        {
+            stale.push(path.clone());
+        }
     }
     stale.sort();
     stale.dedup();
     stale
 }
-

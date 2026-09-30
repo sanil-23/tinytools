@@ -29,6 +29,7 @@ pub(crate) struct WriteStamp {
 
 /// Process-global coordinator that tracks file reads and writes across
 /// all agents in the process. Thread-safe via `RwLock`.
+#[derive(Debug)]
 pub struct FileStateCoordinator {
     /// Per-agent, per-resolved-path read stamps.
     /// Key: `(agent_id, canonical_path)`.
@@ -50,6 +51,7 @@ impl Default for FileStateCoordinator {
 
 impl FileStateCoordinator {
     #[must_use]
+    /// Create an empty coordinator.
     pub fn new() -> Self {
         Self {
             reads: RwLock::new(HashMap::new()),
@@ -69,9 +71,11 @@ impl FileStateCoordinator {
                 continue;
             }
             if let Some(ws) = writes.get(path)
-                && ws.writer != parent_agent_id && ws.timestamp > read_stamp.timestamp {
-                    stale.push(path.clone());
-                }
+                && ws.writer != parent_agent_id
+                && ws.timestamp > read_stamp.timestamp
+            {
+                stale.push(path.clone());
+            }
         }
         stale.sort();
         stale.dedup();

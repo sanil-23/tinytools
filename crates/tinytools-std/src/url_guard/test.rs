@@ -58,14 +58,18 @@ fn validate_wildcard_allows_any_public_host() {
 fn validate_wildcard_still_blocks_local_and_private() {
     // "Allow all sites" must NOT defeat the SSRF guard.
     let allow = vec!["*".to_string()];
-    assert!(validate_url("https://localhost:8080", &allow)
-        .unwrap_err()
-        .to_string()
-        .contains("local/private"));
-    assert!(validate_url("https://192.168.1.5", &allow)
-        .unwrap_err()
-        .to_string()
-        .contains("local/private"));
+    assert!(
+        validate_url("https://localhost:8080", &allow)
+            .unwrap_err()
+            .to_string()
+            .contains("local/private")
+    );
+    assert!(
+        validate_url("https://192.168.1.5", &allow)
+            .unwrap_err()
+            .to_string()
+            .contains("local/private")
+    );
 }
 
 #[test]

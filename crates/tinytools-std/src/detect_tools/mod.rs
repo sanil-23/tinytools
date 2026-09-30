@@ -16,10 +16,13 @@ const DEFAULT_CANDIDATES: &[&str] = &[
     "kubectl", "rg", "jq", "fd", "curl", "wget",
 ];
 
+/// Read-only tool reporting which developer toolchains are on `PATH`.
+#[derive(Debug)]
 pub struct DetectToolsTool;
 
 impl DetectToolsTool {
     #[must_use]
+    /// Create the tool.
     pub fn new() -> Self {
         Self
     }
