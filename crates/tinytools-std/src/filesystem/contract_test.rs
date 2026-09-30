@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use tinytools::Tool;
 
 use super::*;
-use crate::filesystem::test_support::TestGate;
+use crate::filesystem::test_support::{AutonomyLevel, TestGate};
 
 fn tools() -> Vec<(&'static str, Box<dyn Tool>)> {
     let gate = TestGate::supervised(std::env::temp_dir());
@@ -103,4 +103,43 @@ fn a_gate_can_be_shared_across_tools() {
     let gate: Arc<dyn FsGate> = TestGate::supervised(std::env::temp_dir());
     let _read = FileReadTool::new(Arc::clone(&gate));
     let _write = FileWriteTool::new(gate);
+}
+
+fn gate_at(autonomy: AutonomyLevel) -> Arc<TestGate> {
+    TestGate::with(std::env::temp_dir(), autonomy, 1_000_000)
+}
+
+#[test]
+fn write_tools_route_through_approval_only_when_the_gate_asks() {
+    let existing = tempfile::tempdir().unwrap();
+    std::fs::write(existing.path().join("f.txt"), "x").unwrap();
+    let existing_arg = json!({"path": existing.path().join("f.txt").to_string_lossy()});
+    let new_arg = json!({"path": existing.path().join("missing.txt").to_string_lossy()});
+
+    for (autonomy, prompts) in [
+        (AutonomyLevel::Supervised, true),
+        (AutonomyLevel::Full, false),
+        (AutonomyLevel::ReadOnly, false),
+    ] {
+        let gate = gate_at(autonomy);
+        assert_eq!(
+            EditFileTool::new(gate.clone()).external_effect_with_args(&json!({})),
+            prompts
+        );
+        assert_eq!(
+            ApplyPatchTool::new(gate.clone()).external_effect_with_args(&json!({})),
+            prompts
+        );
+        let write = FileWriteTool::new(gate.clone());
+        // Overwriting prompts, creating does not, an unknown path fails safe.
+        assert_eq!(write.external_effect_with_args(&existing_arg), prompts);
+        assert!(!write.external_effect_with_args(&new_arg));
+        assert_eq!(write.external_effect_with_args(&json!({})), prompts);
+        let git = GitOperationsTool::new(gate, std::env::temp_dir());
+        assert_eq!(
+            git.external_effect_with_args(&json!({"operation": "commit"})),
+            prompts
+        );
+        assert!(!git.external_effect_with_args(&json!({"operation": "status"})));
+    }
 }

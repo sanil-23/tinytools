@@ -1,4 +1,11 @@
-#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+#![allow(
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::items_after_statements,
+    clippy::single_match_else,
+    clippy::single_match
+)]
 
 use super::*;
 
