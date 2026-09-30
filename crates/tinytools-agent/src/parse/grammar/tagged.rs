@@ -37,6 +37,7 @@ use crate::parse::call_object::{AliasPolicy, read_calls};
 use crate::parse::json_values::{
     extract_first_json_value_with_end, extract_json_values, find_json_end,
 };
+use crate::repair::args::from_call_object;
 use crate::repair::json::{recover_object, strip_code_fence};
 use crate::types::{CallSource, ParseOptions, ParsedToolCall};
 
@@ -433,12 +434,16 @@ fn recover_dsml_calls(after: &str) -> (Vec<ParsedToolCall>, usize) {
             break;
         }
         let name = name.to_owned();
-        let args = arguments.get("arguments").cloned().unwrap_or(arguments);
+        let args = from_call_object(&arguments);
         calls.push(ParsedToolCall::new(name, args, CallSource::TaggedJson));
-        cursor = json_end
-            + name_match
-                .and_then(|m| m.get(0).map(|v| v.end()))
-                .unwrap_or(0);
+        // An inline name identifies this JSON value, but does not frame a
+        // later value in trailing text. Continue only when DSML explicitly
+        // connects the values with a name parameter.
+        let Some(name_match) = name_match else {
+            cursor = json_end;
+            break;
+        };
+        cursor = json_end + name_match.get(0).map_or(0, |m| m.end());
     }
     let end = if calls.is_empty() {
         0

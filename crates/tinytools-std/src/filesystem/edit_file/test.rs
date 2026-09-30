@@ -282,16 +282,34 @@ async fn edit_honours_the_file_state_guard_and_records_its_write() {
         crate::file_state::with_file_state_agent_id(agent, tool.execute(edit_args("g.txt")))
     };
 
-    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), true);
+    crate::file_state::record_read(
+        &agent,
+        target.clone(),
+        std::time::SystemTime::now(),
+        true,
+        std::time::Instant::now(),
+    );
     let result = run(agent.clone()).await.unwrap();
     assert!(result.output().contains("Partial read"));
 
-    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), false);
+    crate::file_state::record_read(
+        &agent,
+        target.clone(),
+        std::time::SystemTime::now(),
+        false,
+        std::time::Instant::now(),
+    );
     crate::file_state::record_write(&other, target.clone());
     let result = run(agent.clone()).await.unwrap();
     assert!(result.output().contains("Stale read"));
 
-    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), false);
+    crate::file_state::record_read(
+        &agent,
+        target.clone(),
+        std::time::SystemTime::now(),
+        false,
+        std::time::Instant::now(),
+    );
     let result = run(agent.clone()).await.unwrap();
     assert!(!result.is_error, "{}", result.output());
     assert!(crate::file_state::check_stale_read(&agent, &target).is_none());

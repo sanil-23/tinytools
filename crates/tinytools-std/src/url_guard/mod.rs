@@ -10,7 +10,10 @@
 //! - **Strict allowlist** (`allowed_domains` is non-empty): only the listed
 //!   domains and their subdomains are permitted.
 //!
-//! Both modes enforce: http(s) only, no whitespace, no userinfo, no IPv6 hosts.
+//! Both modes enforce: http(s) only, no whitespace, no userinfo, no IPv6 hosts,
+//! no backslash anywhere, and no percent-encoding in the host — the last two
+//! because a WHATWG parser would read them as a different host than the one
+//! checked here.
 //!
 //! **Alternate IP notations** (octal, hex, decimal): Rust's `IpAddr::parse`
 //! rejects them so they are treated as plain hostnames. In strict-allowlist
@@ -18,24 +21,29 @@
 //! pass `validate_url` but are caught by `validate_url_with_dns_check`
 //! because they fail real-world DNS resolution.
 //!
-//! ## DNS Rebinding Protection
+//! ## DNS Rebinding
 //!
 //! Hostname validation alone is insufficient: an attacker can register a
 //! domain that alternates DNS responses between a public IP (passing the
-//! allowlist) and a private IP (e.g. 127.0.0.1). To close this gap,
-//! callers should use [`validate_url_with_dns_check`] which resolves the
-//! hostname and re-validates the resolved IPs before the request is made.
+//! allowlist) and a private IP (e.g. 127.0.0.1).
+//! [`validate_url_with_dns_check`] resolves the hostname, vets every
+//! resolved IP, and returns them in a [`ValidatedUrl`]. That closes the gap
+//! **only if the caller connects to [`ValidatedUrl::addrs`]** — for example
+//! via `reqwest::ClientBuilder::resolve_to_addrs` — rather than letting its
+//! HTTP client resolve the hostname a second time. This crate carries no
+//! HTTP client, so the pinning is the caller's responsibility.
 
 use std::future::Future;
-use std::net::{IpAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 
 /// Validate a URL against the allowlist + SSRF rules. Returns the
 /// original URL on success.
 ///
 /// # Errors
 ///
-/// Fails when the URL is empty, contains whitespace, is not `http(s)`, names a
-/// local/private host, or (in strict mode) is outside the allowlist.
+/// Fails when the URL is empty, contains whitespace or a backslash, is not
+/// `http(s)`, has percent-encoding in its host, names a local/private host,
+/// or (in strict mode) is outside the allowlist.
 pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result<String> {
     let url = raw_url.trim();
 
@@ -50,6 +58,8 @@ pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result
     if !url.starts_with("http://") && !url.starts_with("https://") {
         anyhow::bail!("Only http:// and https:// URLs are allowed");
     }
+
+    reject_backslash(url)?;
 
     let host = extract_host(url)?;
 
@@ -93,14 +103,49 @@ pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result
     Ok(url.to_string())
 }
 
-/// Like [`validate_url`] but also resolves the hostname via DNS and
-/// verifies that none of the resolved IPs are private/local. This
-/// defends against DNS rebinding attacks where an attacker's domain
-/// initially resolves to a public IP (passing the allowlist) and then
-/// flips to 127.0.0.1 at request time.
+/// A URL that passed [`validate_url_with_dns_check`], together with the
+/// exact socket addresses that were vetted.
 ///
-/// Callers should use this function instead of `validate_url` in all
-/// paths that make outbound HTTP requests.
+/// The addresses are the point: DNS can answer differently the next time it
+/// is asked, so a client that re-resolves `host` may connect somewhere that
+/// was never checked. Pin the connection to [`addrs`](Self::addrs) instead —
+/// for example with `reqwest::ClientBuilder::resolve_to_addrs(&host, &addrs)`
+/// — and keep `url` unchanged so TLS SNI and the `Host` header still name
+/// `host`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedUrl {
+    /// The validated URL, trimmed, otherwise exactly as supplied.
+    pub url: String,
+    /// The lowercase host the URL names (a hostname or an IP literal).
+    pub host: String,
+    /// Every address `host` resolved to, each paired with the URL's port;
+    /// all are public. For an IP-literal host this is that single address.
+    pub addrs: Vec<SocketAddr>,
+}
+
+impl ValidatedUrl {
+    /// The validated URL, retaining its hostname as the request authority.
+    #[must_use]
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+
+    /// Vetted connection destinations to pin the HTTP client to.
+    #[must_use]
+    pub fn addresses(&self) -> &[SocketAddr] {
+        &self.addrs
+    }
+}
+
+/// Like [`validate_url`] but also resolves the hostname via DNS and
+/// verifies that none of the resolved IPs are private/local.
+///
+/// This only defends against DNS rebinding — an attacker's domain answering
+/// with a public IP here and 127.0.0.1 at request time — when the caller
+/// connects to the returned [`ValidatedUrl::addrs`] rather than resolving
+/// the hostname again. Callers should use this function instead of
+/// `validate_url` in all paths that make outbound HTTP requests, and pin
+/// the connection as described on [`ValidatedUrl`].
 ///
 /// # Errors
 ///
@@ -109,7 +154,7 @@ pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result
 pub async fn validate_url_with_dns_check(
     raw_url: &str,
     allowed_domains: &[String],
-) -> anyhow::Result<String> {
+) -> anyhow::Result<ValidatedUrl> {
     validate_url_with_dns_check_with_resolver(raw_url, allowed_domains, resolve_host_ips).await
 }
 
@@ -117,7 +162,7 @@ async fn validate_url_with_dns_check_with_resolver<F, Fut>(
     raw_url: &str,
     allowed_domains: &[String],
     resolver: F,
-) -> anyhow::Result<String>
+) -> anyhow::Result<ValidatedUrl>
 where
     F: FnOnce(String, u16) -> Fut,
     Fut: Future<Output = anyhow::Result<Vec<IpAddr>>>,
@@ -126,13 +171,18 @@ where
 
     let host = extract_host(&url)?;
 
+    let port = extract_port(&url)?;
+
     // If the host is already a valid IP literal, `is_private_or_local_host`
     // has already checked it above. We only need DNS resolution for hostnames.
-    if host.parse::<std::net::IpAddr>().is_ok() {
-        return Ok(url);
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        return Ok(ValidatedUrl {
+            url,
+            host,
+            addrs: vec![SocketAddr::new(ip, port)],
+        });
     }
 
-    let port = extract_port(&url)?;
     log::debug!("[url_guard] resolving DNS for host={host} port={port}");
     let addrs = resolver(host.clone(), port).await?;
 
@@ -152,7 +202,14 @@ where
         }
     }
 
-    Ok(url)
+    Ok(ValidatedUrl {
+        url,
+        host,
+        addrs: addrs
+            .into_iter()
+            .map(|ip| SocketAddr::new(ip, port))
+            .collect(),
+    })
 }
 
 async fn resolve_host_ips(host: String, port: u16) -> anyhow::Result<Vec<IpAddr>> {
@@ -230,21 +287,57 @@ pub fn normalize_domain(raw: &str) -> Option<String> {
     Some(d)
 }
 
-/// Extract the host part of an `http(s)` URL.
-///
-/// # Errors
-///
-/// Fails on a missing/empty host, userinfo, or an IPv6 literal.
-pub fn extract_host(url: &str) -> anyhow::Result<String> {
-    let rest = url
-        .strip_prefix("http://")
-        .or_else(|| url.strip_prefix("https://"))
-        .ok_or_else(|| anyhow::anyhow!("Only http:// and https:// URLs are allowed"))?;
+/// Refuse a URL containing `\` anywhere. WHATWG URL parsers (browsers,
+/// `reqwest`'s `url` crate) treat `\` as a path separator in `http(s)` URLs,
+/// so `http://127.0.0.1\.example.com/` names `127.0.0.1` to a real client
+/// while a naive split on `/` would see a subdomain of `example.com`.
+fn reject_backslash(url: &str) -> anyhow::Result<()> {
+    if url.contains('\\') {
+        anyhow::bail!("URL cannot contain a backslash");
+    }
+    Ok(())
+}
+
+/// Split an `http(s)` URL into whether it is plain `http` and its authority
+/// (`host[:port]`), refusing inputs a WHATWG parser would read differently.
+fn split_authority(url: &str) -> anyhow::Result<(bool, &str)> {
+    let (is_http, rest) = if let Some(rest) = url.strip_prefix("http://") {
+        (true, rest)
+    } else if let Some(rest) = url.strip_prefix("https://") {
+        (false, rest)
+    } else {
+        anyhow::bail!("Only http:// and https:// URLs are allowed");
+    };
+
+    reject_backslash(url)?;
 
     let authority = rest
         .split(['/', '?', '#'])
         .next()
         .ok_or_else(|| anyhow::anyhow!("Invalid URL"))?;
+
+    // WHATWG percent-decodes the host, so `%31%32%37.0.0.1` is 127.0.0.1 on
+    // the wire while the literal text matches neither the SSRF checks nor
+    // the allowlist.
+    if authority.contains('%') {
+        anyhow::bail!("URL host cannot contain percent-encoded characters");
+    }
+
+    if authority.starts_with('[') {
+        anyhow::bail!("IPv6 hosts are not supported in http_request");
+    }
+
+    Ok((is_http, authority))
+}
+
+/// Extract the host part of an `http(s)` URL.
+///
+/// # Errors
+///
+/// Fails on a missing/empty host, userinfo, an IPv6 literal, a backslash
+/// anywhere in the URL, or percent-encoding in the authority.
+pub fn extract_host(url: &str) -> anyhow::Result<String> {
+    let (_, authority) = split_authority(url)?;
 
     if authority.is_empty() {
         anyhow::bail!("URL must include a host");
@@ -252,10 +345,6 @@ pub fn extract_host(url: &str) -> anyhow::Result<String> {
 
     if authority.contains('@') {
         anyhow::bail!("URL userinfo is not allowed");
-    }
-
-    if authority.starts_with('[') {
-        anyhow::bail!("IPv6 hosts are not supported in http_request");
     }
 
     let host = authority
@@ -277,22 +366,10 @@ pub fn extract_host(url: &str) -> anyhow::Result<String> {
 ///
 /// # Errors
 ///
-/// Fails when the URL has no valid port.
+/// Fails when the URL has no valid port, is an IPv6 literal, contains a
+/// backslash, or has percent-encoding in the authority.
 pub fn extract_port(url: &str) -> anyhow::Result<u16> {
-    let is_http = url.starts_with("http://");
-    let rest = url
-        .strip_prefix("http://")
-        .or_else(|| url.strip_prefix("https://"))
-        .ok_or_else(|| anyhow::anyhow!("Only http:// and https:// URLs are allowed"))?;
-
-    let authority = rest
-        .split(['/', '?', '#'])
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("Invalid URL"))?;
-
-    if authority.starts_with('[') {
-        anyhow::bail!("IPv6 hosts are not supported in http_request");
-    }
+    let (is_http, authority) = split_authority(url)?;
 
     if let Some((_, port)) = authority.rsplit_once(':') {
         if port.is_empty() || !port.chars().all(|ch| ch.is_ascii_digit()) {
@@ -378,6 +455,12 @@ pub fn is_non_global_v4(v4: std::net::Ipv4Addr) -> bool {
 /// Whether an IPv6 address is non-global (loopback, ULA, link-local, mapped, ...).
 pub fn is_non_global_v6(v6: std::net::Ipv6Addr) -> bool {
     let segs = v6.segments();
+    let well_known_nat64_v4 =
+        (segs[0] == 0x0064 && segs[1] == 0xff9b && segs[2] == 0 && segs[3] == 0).then(|| {
+            let [first, second] = segs[6].to_be_bytes();
+            let [third, fourth] = segs[7].to_be_bytes();
+            std::net::Ipv4Addr::new(first, second, third, fourth)
+        });
     v6.is_loopback()
         || v6.is_unspecified()
         || v6.is_multicast()
@@ -386,6 +469,10 @@ pub fn is_non_global_v6(v6: std::net::Ipv6Addr) -> bool {
         || (segs[0] == 0x2001 && segs[1] == 0x0db8)
         || (segs[0] == 0x0100 && segs[1] == 0 && segs[2] == 0 && segs[3] <= 1)
         || (segs[0] == 0x2001 && segs[1] == 0x0002 && segs[2] == 0)
+        // Local-use translation (RFC 8215) and the well-known NAT64 prefix
+        // can embed addresses that translate to private IPv4 destinations.
+        || (segs[0] == 0x0064 && segs[1] == 0xff9b && segs[2] == 1)
+        || well_known_nat64_v4.is_some_and(is_non_global_v4)
         || (segs[0] & 0xfff0) == 0x3ff0
         || segs[0] == 0x5f00
         || v6.to_ipv4_mapped().is_some_and(is_non_global_v4)

@@ -116,6 +116,10 @@ impl FileReadTool {
             Err(msg) => return Ok(ToolResult::error(msg)),
         };
 
+        // Captured before any read I/O: `file_state` compares it against
+        // sibling agents' writes to decide whether this read may already be stale.
+        let read_started = std::time::Instant::now();
+
         // Check file size AFTER canonicalization to prevent TOCTOU symlink bypass
         match tokio::fs::metadata(&resolved_path).await {
             Ok(meta) => {
@@ -141,7 +145,7 @@ impl FileReadTool {
                         .ok()
                         .and_then(|m| m.modified().ok())
                         .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-                    file_state::record_read(&agent_id, resolved_path, mtime, false);
+                    file_state::record_read(&agent_id, resolved_path, mtime, false, read_started);
                 }
                 // An absent or null offset reads from the start; anything else
                 // that is not a non-negative integer is rejected, so a

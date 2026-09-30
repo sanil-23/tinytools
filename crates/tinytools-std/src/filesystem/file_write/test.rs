@@ -428,7 +428,13 @@ async fn file_write_honours_the_file_state_guard_and_records_its_write() {
     let other = format!("fw-other-{}", dir.path().display());
 
     // Partial read blocks the overwrite.
-    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), true);
+    crate::file_state::record_read(
+        &agent,
+        target.clone(),
+        std::time::SystemTime::now(),
+        true,
+        std::time::Instant::now(),
+    );
     let result = crate::file_state::with_file_state_agent_id(
         agent.clone(),
         tool.execute(json!({"path": "g.txt", "content": "new"})),
@@ -439,7 +445,13 @@ async fn file_write_honours_the_file_state_guard_and_records_its_write() {
     assert!(result.output().contains("Partial read"));
 
     // A sibling's later write makes the read stale.
-    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), false);
+    crate::file_state::record_read(
+        &agent,
+        target.clone(),
+        std::time::SystemTime::now(),
+        false,
+        std::time::Instant::now(),
+    );
     crate::file_state::record_write(&other, target.clone());
     let result = crate::file_state::with_file_state_agent_id(
         agent.clone(),
@@ -451,7 +463,13 @@ async fn file_write_honours_the_file_state_guard_and_records_its_write() {
     assert!(result.output().contains("Stale read"));
 
     // With a fresh full read the write goes through and is recorded.
-    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), false);
+    crate::file_state::record_read(
+        &agent,
+        target.clone(),
+        std::time::SystemTime::now(),
+        false,
+        std::time::Instant::now(),
+    );
     let result = crate::file_state::with_file_state_agent_id(
         agent.clone(),
         tool.execute(json!({"path": "g.txt", "content": "new"})),

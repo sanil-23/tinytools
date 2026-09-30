@@ -1,3 +1,5 @@
+//! Tests for the task-local file-state agent identity.
+
 use crate::file_state::{current_file_state_agent_id, with_file_state_agent_id};
 
 #[tokio::test]

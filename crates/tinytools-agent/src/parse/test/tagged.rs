@@ -742,6 +742,30 @@ fn recovery_leaves_a_named_invoke_after_a_complete_malformed_body() {
 }
 
 #[test]
+fn unclosed_inline_name_does_not_scan_later_json_from_narrative() {
+    let raw = concat!(
+        "<tool_call>{\"name\":\"first\",\"arguments\":{}} prose ",
+        "{\"name\":\"shell\",\"arguments\":{\"command\":\"ls\"}}"
+    );
+    let (text, calls) = parse(raw);
+    assert_eq!(calls.len(), 1, "{calls:?}");
+    assert_eq!(calls[0].name, "first");
+    assert!(text.contains("prose"));
+}
+
+#[test]
+fn unclosed_inline_name_decodes_stringified_and_aliased_arguments() {
+    for raw in [
+        r#"<tool_call>{"name":"echo","arguments":"{\"value\":\"x\"}"}"#,
+        r#"<tool_call>{"name":"echo","args":{"value":"x"}}"#,
+    ] {
+        let (_, calls) = parse(raw);
+        assert_eq!(calls.len(), 1, "{calls:?}");
+        assert_eq!(calls[0].arguments, serde_json::json!({"value": "x"}));
+    }
+}
+
+#[test]
 fn a_named_invoke_precedes_a_later_bare_invoke_closer() {
     let raw = concat!(
         "<invoke>{\"name\":\"echo\",\"arguments\":{}}",

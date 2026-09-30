@@ -428,7 +428,13 @@ async fn apply_patch_honours_the_file_state_guard_and_records_writes() {
         )
     };
 
-    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), true);
+    crate::file_state::record_read(
+        &agent,
+        target.clone(),
+        std::time::SystemTime::now(),
+        true,
+        std::time::Instant::now(),
+    );
     assert!(
         run(agent.clone())
             .await
@@ -437,7 +443,13 @@ async fn apply_patch_honours_the_file_state_guard_and_records_writes() {
             .contains("Partial read")
     );
 
-    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), false);
+    crate::file_state::record_read(
+        &agent,
+        target.clone(),
+        std::time::SystemTime::now(),
+        false,
+        std::time::Instant::now(),
+    );
     crate::file_state::record_write(&other, target.clone());
     assert!(
         run(agent.clone())
@@ -447,7 +459,13 @@ async fn apply_patch_honours_the_file_state_guard_and_records_writes() {
             .contains("Stale read")
     );
 
-    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), false);
+    crate::file_state::record_read(
+        &agent,
+        target.clone(),
+        std::time::SystemTime::now(),
+        false,
+        std::time::Instant::now(),
+    );
     let result = run(agent.clone()).await.unwrap();
     assert!(!result.is_error, "{}", result.output());
     assert!(crate::file_state::check_stale_read(&agent, &target).is_none());

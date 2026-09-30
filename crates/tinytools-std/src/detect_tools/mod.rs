@@ -34,43 +34,74 @@ impl Default for DetectToolsTool {
     }
 }
 
+/// Fallback executable extensions when Windows has no `PATHEXT` set.
+const DEFAULT_PATHEXT: &str = ".EXE;.CMD;.BAT";
+
 /// Locate `name` on `$PATH`, honoring `PATHEXT` on Windows. Returns the first
 /// matching executable path, or `None` if not found.
 #[must_use]
 pub fn find_on_path(name: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
-    let exts: Vec<String> = if cfg!(windows) {
-        std::env::var("PATHEXT")
-            .unwrap_or_else(|_| ".EXE;.CMD;.BAT".to_string())
-            .split(';')
-            .map(std::string::ToString::to_string)
-            .collect()
-    } else {
-        vec![String::new()]
-    };
+    let pathext = cfg!(windows)
+        .then(|| std::env::var("PATHEXT").unwrap_or_else(|_| DEFAULT_PATHEXT.to_string()));
+    let file_names = candidate_file_names(name, pathext.as_deref());
     for dir in std::env::split_paths(&path) {
-        for ext in &exts {
-            let candidate = dir.join(format!("{name}{ext}"));
-            if candidate.is_file() {
-                // On Unix a plain `is_file()` can match a non-executable file and
-                // falsely report the tool as available; require the exec bit.
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    let is_exec = std::fs::metadata(&candidate)
-                        .is_ok_and(|m| m.permissions().mode() & 0o111 != 0);
-                    if is_exec {
-                        return Some(candidate);
-                    }
-                }
-                #[cfg(not(unix))]
-                {
-                    return Some(candidate);
-                }
+        for file_name in &file_names {
+            let candidate = dir.join(file_name);
+            if is_executable_file(&candidate) {
+                return Some(candidate);
             }
         }
     }
     None
+}
+
+/// Whether `path` names a regular file the current process can execute.
+fn is_executable_file(path: &std::path::Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    // On Unix, checking mode bits alone ignores the current process's
+    // effective credentials and supplementary groups.
+    #[cfg(unix)]
+    {
+        rustix::fs::accessat(
+            rustix::fs::CWD,
+            path.as_os_str().as_encoded_bytes(),
+            rustix::fs::Access::EXEC_OK,
+            rustix::fs::AtFlags::EACCESS,
+        )
+        .is_ok()
+    }
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
+/// The file names to probe in each `PATH` directory for `name`.
+///
+/// `pathext` is the Windows `PATHEXT` list (`;`-separated), or `None` on
+/// platforms that run a bare file name. A name that already ends in one of
+/// those extensions (compared case-insensitively, as Windows does) is probed
+/// unchanged; any other name is probed once per extension.
+fn candidate_file_names(name: &str, pathext: Option<&str>) -> Vec<String> {
+    let extensions: Vec<&str> = pathext
+        .into_iter()
+        .flat_map(|list| list.split(';'))
+        .filter(|ext| !ext.is_empty())
+        .collect();
+    let lower_name = name.to_ascii_lowercase();
+    let has_extension = extensions
+        .iter()
+        .any(|ext| lower_name.ends_with(&ext.to_ascii_lowercase()));
+    if extensions.is_empty() || has_extension {
+        return vec![name.to_string()];
+    }
+    extensions
+        .iter()
+        .map(|ext| format!("{name}{ext}"))
+        .collect()
 }
 
 #[async_trait]

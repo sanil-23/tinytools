@@ -127,6 +127,6 @@ fn markdown_fence_with_a_json_body_parses() {
     let (text, calls) = parse(input);
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].name, "ping");
-    assert!(calls[0].source != CallSource::Native);
+    assert_ne!(calls[0].source, CallSource::Native);
     assert!(text.contains("preamble") && text.contains("postamble"));
 }
