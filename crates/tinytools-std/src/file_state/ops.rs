@@ -5,7 +5,7 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Instant, SystemTime};
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
-use super::types::{FileStateCoordinator, ReadStamp, WriteStamp};
+use super::types::{FileStateCoordinator, ReadStamp, writers_after_read};
 
 // ── Singleton ────────────────────────────────────────────────────────────
 
@@ -103,18 +103,11 @@ impl FileStateCoordinator {
             "[file_state] record_write"
         );
         let now = Instant::now();
-        self.writes.write().insert(
-            resolved_path.clone(),
-            WriteStamp {
-                writer: agent_id.to_string(),
-                timestamp: now,
-            },
-        );
-        self.written_paths
+        self.writes
             .write()
-            .entry(agent_id.to_string())
+            .entry(resolved_path.clone())
             .or_default()
-            .insert(resolved_path.clone());
+            .insert(agent_id.to_string(), now);
         // Also update this agent's own read stamp so its own subsequent
         // writes don't trigger self-staleness.
         self.reads.write().insert(
@@ -145,17 +138,15 @@ impl FileStateCoordinator {
         let writes = self.writes.read();
         let read_key = (agent_id.to_string(), resolved_path.to_path_buf());
         let read_stamp = reads.get(&read_key)?;
-        let ws = writes.get(resolved_path)?;
-        if ws.writer != agent_id && ws.timestamp > read_stamp.timestamp {
-            let display_path = resolved_path.display();
-            Some(format!(
-                "Stale read: file '{display_path}' was modified by agent '{}' after your last read. \
-                 Re-read the file before editing.",
-                ws.writer
-            ))
-        } else {
-            None
-        }
+        let writers = writes.get(resolved_path)?;
+        // Name the most recent of the writers that landed after the read.
+        let (writer, _) = writers_after_read(writers, agent_id, read_stamp.timestamp)
+            .max_by(|(a_name, a_at), (b_name, b_at)| a_at.cmp(b_at).then(b_name.cmp(a_name)))?;
+        let display_path = resolved_path.display();
+        Some(format!(
+            "Stale read: file '{display_path}' was modified by agent '{writer}' after your last \
+             read. Re-read the file before editing."
+        ))
     }
 }
 
@@ -213,22 +204,8 @@ impl FileStateCoordinator {
         parent_agent_id: &str,
         child_agent_ids: &[String],
     ) -> Vec<PathBuf> {
-        let reads = self.reads.read();
-        let writes = self.writes.read();
-        let mut stale = Vec::new();
-        for ((agent_id, path), read_stamp) in reads.iter() {
-            if agent_id != parent_agent_id {
-                continue;
-            }
-            if let Some(ws) = writes.get(path)
-                && child_agent_ids.contains(&ws.writer)
-                && ws.timestamp > read_stamp.timestamp
-            {
-                stale.push(path.clone());
-            }
-        }
-        stale.sort();
-        stale.dedup();
-        stale
+        self.stale_reads(parent_agent_id, |writer| {
+            child_agent_ids.iter().any(|child| child == writer)
+        })
     }
 }
