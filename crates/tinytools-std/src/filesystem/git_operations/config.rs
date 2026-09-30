@@ -25,7 +25,7 @@ use std::path::Path;
 ///
 /// The entries are `section.key`, lowercased, with any subsection elided —
 /// `remote.origin.url` is checked as `remote.url`.
-pub(super) const ALLOWED_REPO_CONFIG: &[&str] = &[
+pub(crate) const ALLOWED_REPO_CONFIG: &[&str] = &[
     // What `git init` and `git clone` write, and nothing else.
     //
     // `core.worktree` is deliberately absent, unlike the read-only sibling
@@ -120,7 +120,7 @@ pub(super) const ALLOWED_REPO_CONFIG: &[&str] = &[
 ///
 /// `core.hooksPath` and `commit.gpgSign` are handled separately, in
 /// [`hardened_git`] — see there for why.
-pub(super) const NEUTRALISED_CONFIG: &[&str] = &[
+pub(crate) const NEUTRALISED_CONFIG: &[&str] = &[
     "core.fsmonitor=",
     "core.sshCommand=",
     "core.pager=cat",
@@ -208,7 +208,7 @@ pub fn shell_git_env() -> std::collections::HashMap<std::ffi::OsString, std::ffi
 /// `GIT_CONFIG_GLOBAL` must name something readable-and-empty rather than be
 /// unset — unsetting it lets git fall back to `~/.gitconfig`, which is the
 /// thing being suppressed. `/dev/null` is not a path on Windows; `NUL` is.
-pub(super) const NULL_CONFIG_PATH: &str = if cfg!(windows) { "NUL" } else { "/dev/null" };
+pub(crate) const NULL_CONFIG_PATH: &str = if cfg!(windows) { "NUL" } else { "/dev/null" };
 
 /// Close the system/global config files and the command-valued `GIT_*` env
 /// vars on a `git` invocation, without touching anything about how it reads
@@ -221,7 +221,7 @@ pub(super) const NULL_CONFIG_PATH: &str = if cfg!(windows) { "NUL" } else { "/de
 /// [`first_disallowed_repo_config_key`] — a separate step, precisely because
 /// [`hardened_git`]'s `-c` layer below must not be present while that step is
 /// reading what the repository itself set (see its own doc comment).
-pub(super) fn suppress_ambient_git_config(
+pub(crate) fn suppress_ambient_git_config(
     cmd: &mut tokio::process::Command,
 ) -> &mut tokio::process::Command {
     cmd.env("GIT_CONFIG_NOSYSTEM", "1")
@@ -274,7 +274,7 @@ pub(super) fn suppress_ambient_git_config(
 ///   sign. Overriding it here removes that decision from the repository
 ///   entirely, the same way `core.editor=false` removes commit message
 ///   editing from it in [`NEUTRALISED_CONFIG`] above.
-pub(super) fn hardened_git(dir: &Path) -> tokio::process::Command {
+pub(crate) fn hardened_git(dir: &Path) -> tokio::process::Command {
     let mut cmd = tokio::process::Command::new("git");
     suppress_ambient_git_config(&mut cmd).current_dir(dir);
     for kv in NEUTRALISED_CONFIG {
@@ -293,7 +293,7 @@ pub(super) fn hardened_git(dir: &Path) -> tokio::process::Command {
 /// `remote.origin.url` → `remote.url`; `core.filemode` → `core.filemode`. A
 /// subsection may itself contain dots (`includeIf.gitdir:~/x.y/.path`), so the
 /// first and last components are the reliable ones.
-pub(super) fn normalise_config_key(key: &str) -> String {
+pub(crate) fn normalise_config_key(key: &str) -> String {
     let key = key.to_ascii_lowercase();
     match (key.find('.'), key.rfind('.')) {
         (Some(first), Some(last)) if first != last => {
@@ -339,7 +339,7 @@ pub(super) fn normalise_config_key(key: &str) -> String {
 /// `run_git_command_in` and the repository probe in `execute_in_context`,
 /// which reaches this conclusion without ever getting as far as the guard —
 /// cannot word the same refusal differently.
-pub(super) fn disallowed_config_refusal(dir: &Path, key: &str) -> String {
+pub(crate) fn disallowed_config_refusal(dir: &Path, key: &str) -> String {
     format!(
         "refusing to run git in {}: its repository config sets `{key}`, which is \
          not on the allowlist of configuration this tool will run under. \
@@ -350,7 +350,7 @@ pub(super) fn disallowed_config_refusal(dir: &Path, key: &str) -> String {
     )
 }
 
-pub(super) async fn first_disallowed_repo_config_key(dir: &Path) -> anyhow::Result<Option<String>> {
+pub(crate) async fn first_disallowed_repo_config_key(dir: &Path) -> anyhow::Result<Option<String>> {
     let mut cmd = tokio::process::Command::new("git");
     suppress_ambient_git_config(&mut cmd).current_dir(dir);
     let output = cmd.args(["config", "--list", "--null"]).output().await?;

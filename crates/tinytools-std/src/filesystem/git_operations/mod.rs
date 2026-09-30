@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tinytools::ToolRunContext;
 use tinytools::{Tool, ToolCallOptions, ToolResult};
 
-mod config;
+pub(crate) mod config;
 mod render;
 
 pub use self::config::shell_git_env;

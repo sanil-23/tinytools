@@ -1,5 +1,6 @@
 //! Filesystem tools: read/write/edit/patch, grep/glob/list, diffs, CSV export,
-//! git operations, linter and test runners, and the workspace memory index.
+//! git operations, linter and test runners, the workspace memory index, a
+//! read-only workspace overview and image metadata.
 //!
 //! Every tool that can touch a path takes an `Arc<dyn FsGate>`: the tool
 //! performs the I/O, the host's gate decides whether it is allowed. The gate
@@ -33,12 +34,14 @@ mod gate;
 mod git_operations;
 mod glob_search;
 mod grep;
+mod image_info;
 mod list_files;
 mod read_diff;
 mod run_linter;
 mod run_tests;
 mod text;
 mod update_memory_md;
+mod workspace_state;
 
 #[cfg(test)]
 mod gate_test;
@@ -54,11 +57,13 @@ pub use gate::FsGate;
 pub use git_operations::{GitOperationsTool, shell_git_env};
 pub use glob_search::GlobTool;
 pub use grep::GrepTool;
+pub use image_info::ImageInfoTool;
 pub use list_files::ListFilesTool;
 pub use read_diff::ReadDiffTool;
 pub use run_linter::RunLinterTool;
 pub use run_tests::RunTestsTool;
 pub use update_memory_md::UpdateMemoryMdTool;
+pub use workspace_state::WorkspaceStateTool;
 
 #[cfg(test)]
 mod contract_test;
