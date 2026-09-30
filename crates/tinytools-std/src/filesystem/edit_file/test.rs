@@ -157,7 +157,7 @@ async fn edit_reports_an_os_write_failure_rather_than_a_silent_success() {
     tokio::fs::write(&file, "abc").await.unwrap();
 
     let tool = EditFileTool::new(test_security(dir.clone())).with_sink(Arc::new(
-        super::super::write_sink::RefusingSink(std::io::ErrorKind::PermissionDenied),
+        crate::filesystem::file_sink::RefusingSink(std::io::ErrorKind::PermissionDenied),
     ));
     let result = tool
         .execute(json!({"path": "f.txt", "old_string": "abc", "new_string": "xyz"}))

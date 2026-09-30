@@ -1,5 +1,5 @@
 //! Repository-config hardening (#5494) — the tests for
-//! [`super::super::git_operations_config`].
+//! [`super::config`].
 //!
 //! Split out of `git_operations_tests.rs` for the Rust layout gate, along the
 //! same seam as the module split: these exercise the allow-list and the
@@ -9,13 +9,13 @@
 //! still resolves `GitOperationsTool` the way it did before the split, and so
 //! the fixtures in the sibling test module stay reachable.
 
-use super::super::git_operations_config::{
+use super::config::{
     normalise_config_key, shell_git_env, NEUTRALISED_CONFIG, SHELL_NEUTRALISED_CONFIG,
 };
 // The fixtures stay in `git_operations_tests.rs` and are shared rather than
 // duplicated: both modules are children of `git_operations`, so `pub(super)`
 // there makes them reachable here.
-use super::tests::{error_text, hermetic, init_git_repo, test_tool};
+use super::test::{error_text, hermetic, init_git_repo, test_tool};
 use super::*;
 use tempfile::TempDir;
 

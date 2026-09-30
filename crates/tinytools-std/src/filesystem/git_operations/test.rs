@@ -1,14 +1,12 @@
-use super::super::git_operations_config::NULL_CONFIG_PATH;
+//! Behavior tests for the `git_operations` tool, driven through a fake [`FsGate`].
+
+use super::config::NULL_CONFIG_PATH;
 use super::*;
-use crate::security::SecurityPolicy;
+use crate::filesystem::test_support::{AutonomyLevel, TestGate, WorkspaceContext};
 use tempfile::TempDir;
-use tinyagents_harness::tool::ToolExecutionContext;
 
 pub(super) fn test_tool(dir: &std::path::Path) -> GitOperationsTool {
-    let security = Arc::new(SecurityPolicy {
-        autonomy: AutonomyLevel::Supervised,
-        ..SecurityPolicy::default()
-    });
+    let security = TestGate::with(dir.to_path_buf(), AutonomyLevel::Supervised, 1_000_000);
     GitOperationsTool::new(security, dir.to_path_buf())
 }
 
@@ -92,21 +90,12 @@ fn sanitize_git_allows_safe() {
 /// the behaviour the deleted `worktree_context.rs` task-local used to provide.
 #[test]
 fn git_resolves_cwd_from_workspace_descriptor() {
-    use tinyagents_harness::context::{RunConfig, RunContext};
-    use tinytools::WorkspaceDescriptor;
-
     let action_tmp = TempDir::new().unwrap();
     let worktree_tmp = TempDir::new().unwrap();
     let tool = test_tool(action_tmp.path());
 
     // WITH a descriptor → the worktree root wins.
-    let ws =
-        WorkspaceDescriptor::new(worktree_tmp.path().to_path_buf()).with_policy_id("test-worktree");
-    let ctx: RunContext = RunContext::new(RunConfig::new("test-run"), ()).with_workspace(ws);
-    let tool_ctx = ToolExecutionContext::from_run_context(
-        &ctx,
-        tinyagents_harness::ids::CallId::new("test-call"),
-    );
+    let tool_ctx = WorkspaceContext::at(worktree_tmp.path());
     assert_eq!(
         tool.effective_action_dir_for_context(Some(&tool_ctx)),
         worktree_tmp.path().to_path_buf(),
@@ -164,10 +153,7 @@ async fn blocks_readonly_mode_for_write_ops() {
     let tmp = TempDir::new().unwrap();
     init_git_repo(tmp.path());
 
-    let security = Arc::new(SecurityPolicy {
-        autonomy: AutonomyLevel::ReadOnly,
-        ..SecurityPolicy::default()
-    });
+    let security = TestGate::with(tmp.path().to_path_buf(), AutonomyLevel::ReadOnly, 1_000_000);
     let tool = GitOperationsTool::new(security, tmp.path().to_path_buf());
 
     let result = tool
@@ -184,10 +170,7 @@ async fn allows_branch_listing_in_readonly_mode() {
     let tmp = TempDir::new().unwrap();
     init_git_repo(tmp.path());
 
-    let security = Arc::new(SecurityPolicy {
-        autonomy: AutonomyLevel::ReadOnly,
-        ..SecurityPolicy::default()
-    });
+    let security = TestGate::with(tmp.path().to_path_buf(), AutonomyLevel::ReadOnly, 1_000_000);
     let tool = GitOperationsTool::new(security, tmp.path().to_path_buf());
 
     let result = tool.execute(json!({"operation": "branch"})).await.unwrap();
@@ -202,10 +185,7 @@ async fn allows_branch_listing_in_readonly_mode() {
 #[tokio::test]
 async fn allows_readonly_ops_in_readonly_mode() {
     let tmp = TempDir::new().unwrap();
-    let security = Arc::new(SecurityPolicy {
-        autonomy: AutonomyLevel::ReadOnly,
-        ..SecurityPolicy::default()
-    });
+    let security = TestGate::with(tmp.path().to_path_buf(), AutonomyLevel::ReadOnly, 1_000_000);
     let tool = GitOperationsTool::new(security, tmp.path().to_path_buf());
 
     // This will fail because there's no git repo, but it shouldn't be blocked by autonomy

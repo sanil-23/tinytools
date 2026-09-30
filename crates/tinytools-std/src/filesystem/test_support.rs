@@ -192,3 +192,21 @@ impl FsGate for TestGate {
         })
     }
 }
+
+/// A run context that carries an isolated workspace, as a harness threads one
+/// into a worktree-isolated worker.
+#[derive(Debug)]
+pub struct WorkspaceContext(pub tinytools::WorkspaceDescriptor);
+
+impl WorkspaceContext {
+    /// Context whose workspace is rooted at `root`.
+    pub fn at(root: &Path) -> Self {
+        Self(tinytools::WorkspaceDescriptor::new(root.to_path_buf()).with_policy_id("test-worktree"))
+    }
+}
+
+impl tinytools::ToolRunContext for WorkspaceContext {
+    fn workspace(&self) -> Option<&tinytools::WorkspaceDescriptor> {
+        Some(&self.0)
+    }
+}
