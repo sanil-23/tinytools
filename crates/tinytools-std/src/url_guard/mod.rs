@@ -457,12 +457,9 @@ pub fn is_non_global_v6(v6: std::net::Ipv6Addr) -> bool {
     let segs = v6.segments();
     let well_known_nat64_v4 =
         (segs[0] == 0x0064 && segs[1] == 0xff9b && segs[2] == 0 && segs[3] == 0).then(|| {
-            std::net::Ipv4Addr::new(
-                (segs[6] >> 8) as u8,
-                segs[6] as u8,
-                (segs[7] >> 8) as u8,
-                segs[7] as u8,
-            )
+            let [first, second] = segs[6].to_be_bytes();
+            let [third, fourth] = segs[7].to_be_bytes();
+            std::net::Ipv4Addr::new(first, second, third, fourth)
         });
     v6.is_loopback()
         || v6.is_unspecified()
