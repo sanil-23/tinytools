@@ -235,9 +235,9 @@ pub fn normalize_domain(raw: &str) -> Option<String> {
     Some(d)
 }
 
-/// Refuse a URL containing `\\` anywhere. WHATWG URL parsers (browsers,
-/// `reqwest`'s `url` crate) treat `\\` as a path separator in `http(s)` URLs,
-/// so `http://127.0.0.1\\.example.com/` names `127.0.0.1` to a real client
+/// Refuse a URL containing `\` anywhere. WHATWG URL parsers (browsers,
+/// `reqwest`'s `url` crate) treat `\` as a path separator in `http(s)` URLs,
+/// so `http://127.0.0.1\.example.com/` names `127.0.0.1` to a real client
 /// while a naive split on `/` would see a subdomain of `example.com`.
 fn reject_backslash(url: &str) -> anyhow::Result<()> {
     if url.contains('\\') {
