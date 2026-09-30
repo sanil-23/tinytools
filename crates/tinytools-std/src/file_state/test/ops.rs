@@ -161,11 +161,11 @@ async fn global_api_tracks_reads_writes_and_locks() {
     assert!(try_global().is_some());
 
     let path = PathBuf::from("/tmp/test/global-flow.txt");
-    record_read("reader", path.clone(), SystemTime::now(), true);
+    record_read("reader", path.clone(), SystemTime::now(), true, Instant::now());
     assert!(check_partial_read("reader", &path).is_some());
     assert!(check_stale_read("reader", &path).is_none());
 
-    record_read("reader", path.clone(), SystemTime::now(), false);
+    record_read("reader", path.clone(), SystemTime::now(), false, Instant::now());
     assert!(check_partial_read("reader", &path).is_none());
 
     std::thread::sleep(Duration::from_millis(5));
@@ -192,4 +192,19 @@ fn paths_written_by_keeps_a_path_after_another_agent_overwrites_it() {
     let result = coord.paths_written_by(&["child-1".to_string(), "child-2".to_string()]);
     assert_eq!(result.get("child-1"), Some(&vec![path.clone()]));
     assert_eq!(result.get("child-2"), Some(&vec![path]));
+}
+
+#[test]
+fn sibling_write_during_an_in_flight_read_is_reported_stale() {
+    let coord = fresh_coordinator();
+    let path = PathBuf::from("/tmp/test/in-flight.txt");
+    let read_started = Instant::now();
+    std::thread::sleep(Duration::from_millis(2));
+    // The sibling write lands after the reader opened the file but before
+    // the reader got round to recording the read.
+    coord.record_write("sibling", path.clone());
+    std::thread::sleep(Duration::from_millis(2));
+    coord.record_read("reader", path.clone(), SystemTime::now(), false, read_started);
+
+    assert_eq!(coord.stale_reads_for_parent("reader"), vec![path]);
 }

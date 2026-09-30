@@ -31,23 +31,59 @@ pub fn try_global() -> Option<Arc<FileStateCoordinator>> {
 
 // ── Read tracking ────────────────────────────────────────────────────────
 
-/// Record that `agent_id` read `resolved_path` at the given mtime.
-pub fn record_read(agent_id: &str, resolved_path: PathBuf, mtime: SystemTime, partial: bool) {
+/// Record that `agent_id` read `resolved_path`.
+///
+/// `read_started` must be captured with [`Instant::now`] *before* the file
+/// is opened, not after its contents were read. A sibling write that lands
+/// while the read is in flight is then ordered after the read and reported
+/// stale by [`check_stale_read`], instead of being silently absorbed.
+///
+/// ```
+/// use std::path::PathBuf;
+/// use std::time::{Instant, SystemTime};
+/// use tinytools_std::file_state::record_read;
+///
+/// let path = PathBuf::from("/workspace/notes.txt");
+/// let read_started = Instant::now();
+/// // ... open and read the file, then stat it for its mtime ...
+/// record_read("agent-1", path, SystemTime::now(), false, read_started);
+/// ```
+pub fn record_read(
+    agent_id: &str,
+    resolved_path: PathBuf,
+    mtime: SystemTime,
+    partial: bool,
+    read_started: Instant,
+) {
     let Some(coord) = try_global() else { return };
-    tracing::trace!(
-        agent = agent_id,
-        path = %resolved_path.display(),
-        partial,
-        "[file_state] record_read"
-    );
-    coord.reads.write().insert(
-        (agent_id.to_string(), resolved_path),
-        ReadStamp {
-            mtime,
-            timestamp: Instant::now(),
+    coord.record_read(agent_id, resolved_path, mtime, partial, read_started);
+}
+
+impl FileStateCoordinator {
+    /// Record a read on this coordinator; [`record_read`] delegates here.
+    pub(crate) fn record_read(
+        &self,
+        agent_id: &str,
+        resolved_path: PathBuf,
+        mtime: SystemTime,
+        partial: bool,
+        read_started: Instant,
+    ) {
+        tracing::trace!(
+            agent = agent_id,
+            path = %resolved_path.display(),
             partial,
-        },
-    );
+            "[file_state] record_read"
+        );
+        self.reads.write().insert(
+            (agent_id.to_string(), resolved_path),
+            ReadStamp {
+                mtime,
+                timestamp: read_started,
+                partial,
+            },
+        );
+    }
 }
 
 // ── Write tracking ───────────────────────────────────────────────────────

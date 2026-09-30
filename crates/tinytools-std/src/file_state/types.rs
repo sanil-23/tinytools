@@ -12,7 +12,8 @@ use tokio::sync::Mutex;
 pub struct ReadStamp {
     /// Filesystem mtime at the moment of the read.
     pub mtime: SystemTime,
-    /// Monotonic clock timestamp of the read.
+    /// Monotonic clock timestamp taken just before the read's I/O began, so
+    /// any write that lands during the read orders after it.
     pub timestamp: Instant,
     /// Whether the read was partial (paginated / offset+limit).
     pub partial: bool,

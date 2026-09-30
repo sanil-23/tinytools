@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::unnecessary_literal_bound)]
 
 use super::*;
-use crate::ToolResult;
+use crate::{Tool, ToolResult};
 use async_trait::async_trait;
 
 struct Stub {
