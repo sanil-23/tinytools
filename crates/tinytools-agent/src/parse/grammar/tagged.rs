@@ -442,8 +442,7 @@ fn recover_dsml_calls(after: &str) -> (Vec<ParsedToolCall>, usize) {
         let Some(name_match) = name_match else {
             break;
         };
-        cursor = json_end
-            + name_match.get(0).map_or(0, |m| m.end());
+        cursor = json_end + name_match.get(0).map_or(0, |m| m.end());
     }
     let end = if calls.is_empty() {
         0
