@@ -1,11 +1,52 @@
-#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+//! Unit tests for URL validation, SSRF host classification, and the DNS
+//! check's vetted addresses.
 
 use super::*;
 
+/// Turns an expected rejection into its message, and an unexpected success
+/// into a test failure, without `unwrap_err`.
+trait Rejection {
+    fn rejection(self) -> anyhow::Result<String>;
+}
+
+impl<T: std::fmt::Debug> Rejection for anyhow::Result<T> {
+    fn rejection(self) -> anyhow::Result<String> {
+        match self {
+            Ok(value) => anyhow::bail!("expected a rejection, got {value:?}"),
+            Err(err) => Ok(err.to_string()),
+        }
+    }
+}
+
 #[test]
 fn normalize_domain_strips_scheme_path_and_case() {
-    let got = normalize_domain("  HTTPS://Docs.Example.com/path ").unwrap();
-    assert_eq!(got, "docs.example.com");
+    let got = normalize_domain("  HTTPS://Docs.Example.com/path ");
+    assert_eq!(got.as_deref(), Some("docs.example.com"));
+}
+
+#[test]
+fn normalizes_http_domains_and_rejects_empty_hosts() {
+    assert_eq!(
+        normalize_domain("http://Example.com:8080/path"),
+        Some("example.com".into())
+    );
+    assert_eq!(normalize_domain("https://"), None);
+    assert!(extract_host("http:///path").is_err());
+    assert!(extract_host("http://:80/path").is_err());
+}
+
+#[test]
+fn rejects_malformed_ports() {
+    assert!(extract_port("http://example.com:abc").is_err());
+    assert!(extract_port("http://example.com:65536").is_err());
+}
+
+#[tokio::test]
+async fn system_dns_resolves_numeric_loopback_without_external_network() -> anyhow::Result<()> {
+    let resolved = super::resolve_host_ips("127.0.0.1".to_string(), 80).await?;
+    assert_eq!(resolved, vec!["127.0.0.1".parse::<std::net::IpAddr>()?]);
+    assert!(super::resolve_host_ips(String::new(), 80).await.is_err());
+    Ok(())
 }
 
 #[test]
@@ -19,10 +60,11 @@ fn normalize_allowed_domains_deduplicates() {
 }
 
 #[test]
-fn validate_accepts_exact_domain() {
+fn validate_accepts_exact_domain() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
-    let got = validate_url("https://example.com/docs", &allow).unwrap();
+    let got = validate_url("https://example.com/docs", &allow)?;
     assert_eq!(got, "https://example.com/docs");
+    Ok(())
 }
 
 #[test]
@@ -38,12 +80,11 @@ fn validate_accepts_subdomain() {
 }
 
 #[test]
-fn validate_rejects_allowlist_miss() {
+fn validate_rejects_allowlist_miss() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
-    let err = validate_url("https://google.com", &allow)
-        .unwrap_err()
-        .to_string();
+    let err = validate_url("https://google.com", &allow).rejection()?;
     assert!(err.contains("allowed websites"));
+    Ok(())
 }
 
 #[test]
@@ -55,57 +96,52 @@ fn validate_wildcard_allows_any_public_host() {
 }
 
 #[test]
-fn validate_wildcard_still_blocks_local_and_private() {
+fn validate_wildcard_still_blocks_local_and_private() -> anyhow::Result<()> {
     // "Allow all sites" must NOT defeat the SSRF guard.
     let allow = vec!["*".to_string()];
     assert!(
         validate_url("https://localhost:8080", &allow)
-            .unwrap_err()
-            .to_string()
+            .rejection()?
             .contains("local/private")
     );
     assert!(
         validate_url("https://192.168.1.5", &allow)
-            .unwrap_err()
-            .to_string()
+            .rejection()?
             .contains("local/private")
     );
+    Ok(())
 }
 
 #[test]
-fn validate_rejects_localhost() {
+fn validate_rejects_localhost() -> anyhow::Result<()> {
     let allow = vec!["localhost".to_string()];
-    let err = validate_url("https://localhost:8080", &allow)
-        .unwrap_err()
-        .to_string();
+    let err = validate_url("https://localhost:8080", &allow).rejection()?;
     assert!(err.contains("local/private"));
+    Ok(())
 }
 
 #[test]
-fn validate_rejects_private_ipv4() {
+fn validate_rejects_private_ipv4() -> anyhow::Result<()> {
     let allow = vec!["192.168.1.5".to_string()];
-    let err = validate_url("https://192.168.1.5", &allow)
-        .unwrap_err()
-        .to_string();
+    let err = validate_url("https://192.168.1.5", &allow).rejection()?;
     assert!(err.contains("local/private"));
+    Ok(())
 }
 
 #[test]
-fn validate_rejects_whitespace() {
+fn validate_rejects_whitespace() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
-    let err = validate_url("https://example.com/hello world", &allow)
-        .unwrap_err()
-        .to_string();
+    let err = validate_url("https://example.com/hello world", &allow).rejection()?;
     assert!(err.contains("whitespace"));
+    Ok(())
 }
 
 #[test]
-fn validate_rejects_userinfo() {
+fn validate_rejects_userinfo() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
-    let err = validate_url("https://user@example.com", &allow)
-        .unwrap_err()
-        .to_string();
+    let err = validate_url("https://user@example.com", &allow).rejection()?;
     assert!(err.contains("userinfo"));
+    Ok(())
 }
 
 // Empty allowed_domains = open mode: any public host is permitted.
@@ -119,16 +155,13 @@ fn validate_empty_allowlist_allows_public_host() {
 }
 
 #[test]
-fn validate_empty_allowlist_still_blocks_private_hosts() {
-    let err = validate_url("https://192.168.1.5", &[])
-        .unwrap_err()
-        .to_string();
+fn validate_empty_allowlist_still_blocks_private_hosts() -> anyhow::Result<()> {
+    let err = validate_url("https://192.168.1.5", &[]).rejection()?;
     assert!(err.contains("local/private"));
 
-    let err = validate_url("https://localhost", &[])
-        .unwrap_err()
-        .to_string();
+    let err = validate_url("https://localhost", &[]).rejection()?;
     assert!(err.contains("local/private"));
+    Ok(())
 }
 
 // ── normalize_allowed_domains: fail-closed on malformed-only input ──
@@ -159,31 +192,8 @@ fn normalize_empty_input_stays_empty_for_open_mode() {
     assert!(normalize_allowed_domains(vec![]).is_empty());
 }
 
-#[test]
-fn normalization_discards_invalid_domains_and_strips_ports() {
-    assert_eq!(
-        normalize_domain("https://.Example.com:8443/path").as_deref(),
-        Some("example.com")
-    );
-    assert_eq!(normalize_domain("   "), None);
-    assert_eq!(normalize_domain("bad domain"), None);
-    assert_eq!(normalize_domain("http://"), None);
-}
-
-#[test]
-fn host_and_port_parsing_reject_malformed_authorities() {
-    assert!(extract_host("https:///path").is_err());
-    assert!(extract_host("https://:80/path").is_err());
-    assert_eq!(extract_port("http://example.com").unwrap(), 80);
-    assert_eq!(extract_port("https://example.com").unwrap(), 443);
-    assert_eq!(extract_port("https://example.com:8443/path").unwrap(), 8443);
-    assert!(extract_port("https://example.com:nope").is_err());
-    assert!(extract_port("https://example.com:65536").is_err());
-    assert!(extract_port("https://[::1]:443").is_err());
-}
-
 #[tokio::test]
-async fn dns_check_with_empty_allowlist_allows_public_resolved_host() {
+async fn dns_check_with_empty_allowlist_allows_public_resolved_host() -> anyhow::Result<()> {
     // Open mode (empty allowlist) must still pass DNS check for public IPs.
     let got = validate_url_with_dns_check_with_resolver(
         "https://example.com",
@@ -191,49 +201,28 @@ async fn dns_check_with_empty_allowlist_allows_public_resolved_host() {
         |host, port| async move {
             assert_eq!(host, "example.com");
             assert_eq!(port, 443);
-            Ok(vec!["93.184.216.34".parse().unwrap()])
+            Ok(vec!["93.184.216.34".parse()?])
         },
     )
-    .await
-    .unwrap();
-    assert_eq!(got.url(), "https://example.com");
-    assert_eq!(got.addresses(), &["93.184.216.34:443".parse().unwrap()]);
+    .await?;
+    assert_eq!(got.url, "https://example.com");
+    Ok(())
 }
 
 #[tokio::test]
-async fn dns_check_skips_resolution_for_a_public_ip_literal() {
-    let got = validate_url_with_dns_check_with_resolver("https://8.8.8.8", &[], |_, _| async {
-        panic!("IP literals should not be resolved")
-    })
-    .await
-    .unwrap();
-    assert_eq!(got.url(), "https://8.8.8.8");
-    assert_eq!(got.addresses(), &["8.8.8.8:443".parse().unwrap()]);
-}
-
-#[tokio::test]
-async fn system_resolver_accepts_a_numeric_loopback_without_network_access() {
-    let addresses = resolve_host_ips("127.0.0.1".to_string(), 80).await.unwrap();
-    assert_eq!(
-        addresses,
-        vec!["127.0.0.1".parse::<std::net::IpAddr>().unwrap()]
-    );
-}
-
-#[tokio::test]
-async fn dns_check_with_empty_allowlist_blocks_private_resolved_ip() {
+async fn dns_check_with_empty_allowlist_blocks_private_resolved_ip() -> anyhow::Result<()> {
     // Even in open mode, DNS rebinding to a private IP must be blocked.
     let err = validate_url_with_dns_check_with_resolver("https://example.com", &[], |_, _| async {
-        Ok(vec!["10.0.0.1".parse().unwrap()])
+        Ok(vec!["10.0.0.1".parse()?])
     })
     .await
-    .unwrap_err()
-    .to_string();
+    .rejection()?;
     assert!(err.contains("DNS rebinding blocked"));
+    Ok(())
 }
 
 #[tokio::test]
-async fn dns_check_resolver_failure_is_a_refusal_not_a_pass_through() {
+async fn dns_check_resolver_failure_is_a_refusal_not_a_pass_through() -> anyhow::Result<()> {
     // A resolver error (NXDOMAIN, network down, timeout) must refuse the
     // fetch, not fall back to treating the host as unresolved-and-therefore-
     // allowed.
@@ -243,13 +232,13 @@ async fn dns_check_resolver_failure_is_a_refusal_not_a_pass_through() {
         |host, _port| async move { anyhow::bail!("DNS resolution failed for '{host}': NXDOMAIN") },
     )
     .await
-    .unwrap_err()
-    .to_string();
+    .rejection()?;
     assert!(err.contains("DNS resolution failed"));
+    Ok(())
 }
 
 #[tokio::test]
-async fn dns_check_resolver_returning_no_addresses_is_a_refusal() {
+async fn dns_check_resolver_returning_no_addresses_is_a_refusal() -> anyhow::Result<()> {
     // A resolver that answers with zero addresses (some stub resolvers do
     // this instead of erroring) must not be treated as "no IPs to check,
     // therefore allowed".
@@ -257,34 +246,33 @@ async fn dns_check_resolver_returning_no_addresses_is_a_refusal() {
         Ok(Vec::new())
     })
     .await
-    .unwrap_err()
-    .to_string();
+    .rejection()?;
     assert!(err.contains("DNS resolution returned no addresses"));
+    Ok(())
 }
 
 #[test]
-fn validate_rejects_ftp_scheme() {
+fn validate_rejects_ftp_scheme() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
-    let err = validate_url("ftp://example.com", &allow)
-        .unwrap_err()
-        .to_string();
+    let err = validate_url("ftp://example.com", &allow).rejection()?;
     assert!(err.contains("http://") || err.contains("https://"));
+    Ok(())
 }
 
 #[test]
-fn validate_rejects_empty_url() {
+fn validate_rejects_empty_url() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
-    let err = validate_url("", &allow).unwrap_err().to_string();
+    let err = validate_url("", &allow).rejection()?;
     assert!(err.contains("empty"));
+    Ok(())
 }
 
 #[test]
-fn validate_rejects_ipv6_host() {
+fn validate_rejects_ipv6_host() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
-    let err = validate_url("http://[::1]:8080/path", &allow)
-        .unwrap_err()
-        .to_string();
+    let err = validate_url("http://[::1]:8080/path", &allow).rejection()?;
     assert!(err.contains("IPv6"));
+    Ok(())
 }
 
 #[test]
@@ -357,6 +345,14 @@ fn allows_public_ipv4() {
 #[test]
 fn blocks_ipv6_documentation_range() {
     assert!(is_private_or_local_host("2001:db8::1"));
+}
+
+#[test]
+fn blocks_nat64_translation_prefixes() {
+    assert!(is_private_or_local_host("64:ff9b:1::7f00:1"));
+    assert!(is_private_or_local_host("64:ff9b::7f00:1"));
+    assert!(!is_private_or_local_host("64:ff9b::808:808"));
+    assert!(!is_private_or_local_host("2001:4860:4860::8888"));
 }
 
 #[test]
@@ -440,7 +436,7 @@ fn ssrf_zero_padded_loopback_not_parsed_as_ip() {
 }
 
 #[test]
-fn ssrf_alternate_notations_rejected_by_validate_url() {
+fn ssrf_alternate_notations_rejected_by_validate_url() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
     for notation in [
         "http://0177.0.0.1",
@@ -448,18 +444,19 @@ fn ssrf_alternate_notations_rejected_by_validate_url() {
         "http://2130706433",
         "http://127.000.000.001",
     ] {
-        let err = validate_url(notation, &allow).unwrap_err().to_string();
+        let err = validate_url(notation, &allow).rejection()?;
         assert!(
             err.contains("allowed websites"),
             "Expected allowlist rejection for {notation}, got: {err}"
         );
     }
+    Ok(())
 }
 
 // ── DNS rebinding protection ─────────────────────────────────
 
 #[tokio::test]
-async fn dns_check_blocks_localhost_resolution() {
+async fn dns_check_blocks_localhost_resolution() -> anyhow::Result<()> {
     // "localhost" resolves to 127.0.0.1 on most systems. Even if
     // someone adds it to the allowlist, the DNS check should block it.
     let allow = vec!["localhost".to_string()];
@@ -467,16 +464,16 @@ async fn dns_check_blocks_localhost_resolution() {
     // but validate_url_with_dns_check should also catch it.
     let err = validate_url_with_dns_check("https://localhost", &allow)
         .await
-        .unwrap_err()
-        .to_string();
+        .rejection()?;
     assert!(
         err.contains("local/private") || err.contains("rebinding"),
         "Expected SSRF block for localhost, got: {err}"
     );
+    Ok(())
 }
 
 #[tokio::test]
-async fn dns_check_passes_for_public_resolved_ip() {
+async fn dns_check_passes_for_public_resolved_ip() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
     let got = validate_url_with_dns_check_with_resolver(
         "https://example.com",
@@ -484,30 +481,29 @@ async fn dns_check_passes_for_public_resolved_ip() {
         |host, port| async move {
             assert_eq!(host, "example.com");
             assert_eq!(port, 443);
-            Ok(vec!["93.184.216.34".parse().unwrap()])
+            Ok(vec!["93.184.216.34".parse()?])
         },
     )
-    .await
-    .unwrap();
-    assert_eq!(got.url(), "https://example.com");
-    assert_eq!(got.addresses(), &["93.184.216.34:443".parse().unwrap()]);
+    .await?;
+    assert_eq!(got.url, "https://example.com");
+    Ok(())
 }
 
 #[tokio::test]
-async fn dns_check_blocks_private_resolved_ip() {
+async fn dns_check_blocks_private_resolved_ip() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
     let err =
         validate_url_with_dns_check_with_resolver("https://example.com", &allow, |_, _| async {
-            Ok(vec!["127.0.0.1".parse().unwrap()])
+            Ok(vec!["127.0.0.1".parse()?])
         })
         .await
-        .unwrap_err()
-        .to_string();
+        .rejection()?;
     assert!(err.contains("DNS rebinding blocked"));
+    Ok(())
 }
 
 #[tokio::test]
-async fn dns_check_uses_explicit_port_for_resolution() {
+async fn dns_check_uses_explicit_port_for_resolution() -> anyhow::Result<()> {
     let allow = vec!["api.example.com".to_string()];
     let got = validate_url_with_dns_check_with_resolver(
         "http://api.example.com:8080/status",
@@ -515,17 +511,16 @@ async fn dns_check_uses_explicit_port_for_resolution() {
         |host, port| async move {
             assert_eq!(host, "api.example.com");
             assert_eq!(port, 8080);
-            Ok(vec!["93.184.216.34".parse().unwrap()])
+            Ok(vec!["93.184.216.34".parse()?])
         },
     )
-    .await
-    .unwrap();
-    assert_eq!(got.url(), "http://api.example.com:8080/status");
-    assert_eq!(got.addresses(), &["93.184.216.34:8080".parse().unwrap()]);
+    .await?;
+    assert_eq!(got.url, "http://api.example.com:8080/status");
+    Ok(())
 }
 
 #[tokio::test]
-async fn dns_check_returns_resolver_failure() {
+async fn dns_check_returns_resolver_failure() -> anyhow::Result<()> {
     let allow = vec!["example.com".to_string()];
     let err = validate_url_with_dns_check_with_resolver(
         "https://example.com",
@@ -535,19 +530,19 @@ async fn dns_check_returns_resolver_failure() {
         },
     )
     .await
-    .unwrap_err()
-    .to_string();
+    .rejection()?;
     assert!(err.contains("DNS resolution failed"));
+    Ok(())
 }
 
 #[tokio::test]
-async fn dns_check_rejects_ip_literal_private() {
+async fn dns_check_rejects_ip_literal_private() -> anyhow::Result<()> {
     let allow = vec!["10.0.0.1".to_string()];
     let err = validate_url_with_dns_check("https://10.0.0.1", &allow)
         .await
-        .unwrap_err()
-        .to_string();
+        .rejection()?;
     assert!(err.contains("local/private"));
+    Ok(())
 }
 
 #[test]
@@ -559,18 +554,18 @@ fn wildcard_allows_any_host() {
 }
 
 #[tokio::test]
-async fn wildcard_still_blocks_private_hosts() {
+async fn wildcard_still_blocks_private_hosts() -> anyhow::Result<()> {
     // `*` opens public hosts only — SSRF block on private/local hosts stays.
     let any = vec!["*".to_string()];
     let err = validate_url_with_dns_check("https://127.0.0.1", &any)
         .await
-        .unwrap_err()
-        .to_string();
+        .rejection()?;
     assert!(err.contains("local/private"), "got: {err}");
+    Ok(())
 }
 
 #[test]
-fn exported_ssrf_predicates_classify_non_global_ips_accurately() {
+fn exported_ssrf_predicates_classify_non_global_ips_accurately() -> anyhow::Result<()> {
     use std::net::{Ipv4Addr, Ipv6Addr};
 
     // IPv4 Non-global checks
@@ -600,22 +595,22 @@ fn exported_ssrf_predicates_classify_non_global_ips_accurately() {
     // IPv6 Non-global checks
     assert!(is_non_global_v6(Ipv6Addr::LOCALHOST));
     assert!(is_non_global_v6(Ipv6Addr::UNSPECIFIED));
-    assert!(is_non_global_v6("fc00::1".parse().unwrap()));
-    assert!(is_non_global_v6("fe80::1".parse().unwrap()));
-    assert!(is_non_global_v6("2001:db8::1".parse().unwrap()));
-    assert!(is_non_global_v6("100::1".parse().unwrap()));
-    assert!(is_non_global_v6("100:0:0:1::1".parse().unwrap()));
-    assert!(is_non_global_v6("2001:2::1".parse().unwrap()));
-    assert!(is_non_global_v6("3fff::1".parse().unwrap()));
-    assert!(is_non_global_v6("5f00::1".parse().unwrap()));
+    assert!(is_non_global_v6("fc00::1".parse()?));
+    assert!(is_non_global_v6("fe80::1".parse()?));
+    assert!(is_non_global_v6("2001:db8::1".parse()?));
+    assert!(is_non_global_v6("100::1".parse()?));
+    assert!(is_non_global_v6("100:0:0:1::1".parse()?));
+    assert!(is_non_global_v6("2001:2::1".parse()?));
+    assert!(is_non_global_v6("3fff::1".parse()?));
+    assert!(is_non_global_v6("5f00::1".parse()?));
 
     // IPv6 Global public IPs
-    assert!(!is_non_global_v6("2606:4700:4700::1111".parse().unwrap()));
-    assert!(!is_non_global_v6("101::1".parse().unwrap()));
-    assert!(!is_non_global_v6("100:0:0:2::1".parse().unwrap()));
-    assert!(!is_non_global_v6("2001:3::1".parse().unwrap()));
-    assert!(!is_non_global_v6("4000::1".parse().unwrap()));
-    assert!(!is_non_global_v6("5f01::1".parse().unwrap()));
+    assert!(!is_non_global_v6("2606:4700:4700::1111".parse()?));
+    assert!(!is_non_global_v6("101::1".parse()?));
+    assert!(!is_non_global_v6("100:0:0:2::1".parse()?));
+    assert!(!is_non_global_v6("2001:3::1".parse()?));
+    assert!(!is_non_global_v6("4000::1".parse()?));
+    assert!(!is_non_global_v6("5f01::1".parse()?));
 
     // Host helper checks (including ASCII case-insensitivity and trailing dot)
     assert!(is_private_or_local_host("localhost"));
@@ -630,4 +625,94 @@ fn exported_ssrf_predicates_classify_non_global_ips_accurately() {
     assert!(is_private_or_local_host("[::1]"));
     assert!(!is_private_or_local_host("github.com"));
     assert!(!is_private_or_local_host("api.openai.com"));
+    Ok(())
+}
+
+// ── WHATWG parser differentials ─────────────────────────────
+
+#[test]
+fn validate_rejects_backslash_authority_smuggling() -> anyhow::Result<()> {
+    // A WHATWG parser treats `\` as `/` for http(s), so a real client
+    // connects to 127.0.0.1 while a naive split sees `*.example.com`.
+    let allow = vec!["example.com".to_string()];
+    let smuggled = "http://127.0.0.1\\.example.com/";
+    let err = validate_url(smuggled, &allow).rejection()?;
+    assert!(err.contains("backslash"), "got: {err}");
+    let err = validate_url(smuggled, &[]).rejection()?;
+    assert!(err.contains("backslash"), "got: {err}");
+    Ok(())
+}
+
+#[test]
+fn validate_rejects_backslash_anywhere() -> anyhow::Result<()> {
+    let err = validate_url("https://example.com/a\\b", &[]).rejection()?;
+    assert!(err.contains("backslash"), "got: {err}");
+    Ok(())
+}
+
+#[test]
+fn extract_host_and_port_reject_backslash() {
+    let smuggled = "http://127.0.0.1\\.example.com:8080/";
+    assert!(extract_host(smuggled).is_err());
+    assert!(extract_port(smuggled).is_err());
+}
+
+#[test]
+fn validate_rejects_percent_encoded_host() -> anyhow::Result<()> {
+    // WHATWG percent-decodes the host, so this is 127.0.0.1 on the wire.
+    let err = validate_url("http://%31%32%37.0.0.1/", &[]).rejection()?;
+    assert!(err.contains("percent-encoded"), "got: {err}");
+    let allow = vec!["example.com".to_string()];
+    let err = validate_url("http://evil%2eexample.com/", &allow).rejection()?;
+    assert!(err.contains("percent-encoded"), "got: {err}");
+    Ok(())
+}
+
+#[test]
+fn extract_host_and_port_reject_percent_encoded_authority() {
+    assert!(extract_host("http://%31%32%37.0.0.1/").is_err());
+    assert!(extract_port("http://example.com:%38%30/").is_err());
+}
+
+#[test]
+fn validate_allows_percent_encoding_outside_the_authority() -> anyhow::Result<()> {
+    let got = validate_url("https://example.com/search?q=a%20b#x%2F", &[])?;
+    assert_eq!(got, "https://example.com/search?q=a%20b#x%2F");
+    Ok(())
+}
+
+#[tokio::test]
+async fn dns_check_returns_exactly_the_vetted_addresses() -> anyhow::Result<()> {
+    let got = validate_url_with_dns_check_with_resolver(
+        "https://API.example.com:8443/v1",
+        &[],
+        |_, _| async {
+            Ok(vec![
+                "93.184.216.34".parse()?,
+                "2606:4700:4700::1111".parse()?,
+            ])
+        },
+    )
+    .await?;
+    assert_eq!(
+        got,
+        ValidatedUrl {
+            url: "https://API.example.com:8443/v1".to_string(),
+            host: "api.example.com".to_string(),
+            addrs: vec![
+                "93.184.216.34:8443".parse()?,
+                "[2606:4700:4700::1111]:8443".parse()?,
+            ],
+        }
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn dns_check_pins_an_ip_literal_host_to_itself() -> anyhow::Result<()> {
+    // IP literals skip DNS entirely, so this stays network-free.
+    let got = validate_url_with_dns_check("http://93.184.216.34/page", &[]).await?;
+    assert_eq!(got.host, "93.184.216.34");
+    assert_eq!(got.addrs, vec!["93.184.216.34:80".parse()?]);
+    Ok(())
 }

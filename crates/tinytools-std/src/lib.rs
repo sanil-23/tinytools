@@ -6,8 +6,26 @@
 //!
 //! - [`file_state`] — cross-agent read/write stamps and per-path locks, so a
 //!   sibling agent's edit is noticed before a stale overwrite.
-//! - [`url_guard`] — URL validation with SSRF and DNS-rebinding checks.
+//! - [`url_guard`] — URL validation with SSRF checks, plus DNS resolution
+//!   that returns the vetted addresses for the caller to pin its connection to.
 //! - [`detect_tools`] — `PATH` probing and the read-only `detect_tools` tool.
+//!
+//! # Example
+//!
+//! Probe `PATH` directly, or hand the host the read-only tool that does the
+//! same for a model:
+//!
+//! ```
+//! use tinytools::{PermissionLevel, Tool};
+//! use tinytools_std::detect_tools::{DetectToolsTool, find_on_path};
+//!
+//! // A missing binary is `None`, never an error.
+//! assert_eq!(find_on_path("definitely-not-a-real-binary-7f3a"), None);
+//!
+//! let tool = DetectToolsTool::new();
+//! assert_eq!(tool.name(), "detect_tools");
+//! assert_eq!(tool.permission_level(), PermissionLevel::ReadOnly);
+//! ```
 
 pub mod detect_tools;
 pub mod file_state;

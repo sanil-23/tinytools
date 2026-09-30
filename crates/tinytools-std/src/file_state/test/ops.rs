@@ -1,6 +1,7 @@
-use crate::file_state::types::WriteStamp;
+//! Tests for read/write tracking, staleness checks, and path locks.
+
 use crate::file_state::{FileStateCoordinator, ReadStamp};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::Mutex;
@@ -21,9 +22,12 @@ fn record_and_check_no_staleness() {
             partial: false,
         },
     );
-    let reads = coord.reads.read();
-    let rs = reads.get(&("agent-a".to_string(), path.clone())).unwrap();
-    assert!(!rs.partial);
+    let partial = coord
+        .reads
+        .read()
+        .get(&("agent-a".to_string(), path.clone()))
+        .map(|rs| rs.partial);
+    assert_eq!(partial, Some(false));
     assert!(coord.writes.read().get(&path).is_none());
 }
 
@@ -31,23 +35,15 @@ fn record_and_check_no_staleness() {
 fn detect_sibling_write_staleness() {
     let coord = fresh_coordinator();
     let path = PathBuf::from("/tmp/test/b.txt");
-    let read_time = Instant::now();
-    coord.reads.write().insert(
-        ("agent-a".to_string(), path.clone()),
-        ReadStamp {
-            mtime: SystemTime::now(),
-            timestamp: read_time,
-            partial: false,
-        },
+    coord.record_read(
+        "agent-a",
+        path.clone(),
+        SystemTime::now(),
+        false,
+        Instant::now(),
     );
     std::thread::sleep(Duration::from_millis(5));
-    coord.writes.write().insert(
-        path.clone(),
-        WriteStamp {
-            writer: "agent-b".to_string(),
-            timestamp: Instant::now(),
-        },
-    );
+    coord.record_write("agent-b", path.clone());
     let stale = coord.stale_reads_for_parent("agent-a");
     assert_eq!(stale, vec![path]);
 }
@@ -56,25 +52,18 @@ fn detect_sibling_write_staleness() {
 fn own_write_does_not_trigger_staleness() {
     let coord = fresh_coordinator();
     let path = PathBuf::from("/tmp/test/c.txt");
-    let now = Instant::now();
-    coord.reads.write().insert(
-        ("agent-a".to_string(), path.clone()),
-        ReadStamp {
-            mtime: SystemTime::now(),
-            timestamp: now,
-            partial: false,
-        },
+    coord.record_read(
+        "agent-a",
+        path.clone(),
+        SystemTime::now(),
+        false,
+        Instant::now(),
     );
     std::thread::sleep(Duration::from_millis(5));
-    coord.writes.write().insert(
-        path.clone(),
-        WriteStamp {
-            writer: "agent-a".to_string(),
-            timestamp: Instant::now(),
-        },
-    );
+    coord.record_write("agent-a", path.clone());
     let stale = coord.stale_reads_for_parent("agent-a");
     assert!(stale.is_empty());
+    assert_eq!(coord.check_stale_read("agent-a", &path), None);
 }
 
 #[test]
@@ -89,34 +78,37 @@ fn partial_read_detected() {
             partial: true,
         },
     );
-    let reads = coord.reads.read();
-    let rs = reads.get(&("agent-a".to_string(), path.clone())).unwrap();
-    assert!(rs.partial);
+    let partial = coord
+        .reads
+        .read()
+        .get(&("agent-a".to_string(), path.clone()))
+        .map(|rs| rs.partial);
+    assert_eq!(partial, Some(true));
 }
 
 #[test]
 fn parent_stale_files_detects_child_writes() {
     let coord = fresh_coordinator();
     let path = PathBuf::from("/tmp/test/e.txt");
-    let parent_read_time = Instant::now();
-    coord.reads.write().insert(
-        ("parent".to_string(), path.clone()),
-        ReadStamp {
-            mtime: SystemTime::now(),
-            timestamp: parent_read_time,
-            partial: false,
-        },
+    coord.record_read(
+        "parent",
+        path.clone(),
+        SystemTime::now(),
+        false,
+        Instant::now(),
     );
     std::thread::sleep(Duration::from_millis(5));
-    coord.writes.write().insert(
-        path.clone(),
-        WriteStamp {
-            writer: "child-1".to_string(),
-            timestamp: Instant::now(),
-        },
+    coord.record_write("child-1", path.clone());
+    assert_eq!(coord.stale_reads_for_parent("parent"), vec![path.clone()]);
+    assert_eq!(
+        coord.parent_stale_files("parent", &["child-1".to_string()]),
+        vec![path]
     );
-    let stale = coord.stale_reads_for_parent("parent");
-    assert_eq!(stale, vec![path]);
+    assert!(
+        coord
+            .parent_stale_files("parent", &["someone-else".to_string()])
+            .is_empty()
+    );
 }
 
 #[test]
@@ -124,24 +116,11 @@ fn paths_written_by_collects_correctly() {
     let coord = fresh_coordinator();
     let p1 = PathBuf::from("/tmp/test/f1.txt");
     let p2 = PathBuf::from("/tmp/test/f2.txt");
-    coord.writes.write().insert(
-        p1.clone(),
-        WriteStamp {
-            writer: "child-1".to_string(),
-            timestamp: Instant::now(),
-        },
-    );
-    coord.writes.write().insert(
-        p2.clone(),
-        WriteStamp {
-            writer: "child-2".to_string(),
-            timestamp: Instant::now(),
-        },
-    );
+    coord.record_write("child-1", p1.clone());
+    coord.record_write("child-2", p2);
     let result = coord.paths_written_by(&["child-1".to_string()]);
     assert_eq!(result.len(), 1);
-    assert!(result.contains_key("child-1"));
-    assert_eq!(result["child-1"], vec![p1]);
+    assert_eq!(result.get("child-1"), Some(&vec![p1]));
 }
 
 #[tokio::test]
@@ -163,7 +142,7 @@ async fn path_lock_serialises_access() {
 }
 
 #[tokio::test]
-async fn global_api_tracks_reads_writes_and_locks() {
+async fn global_api_tracks_reads_writes_and_locks() -> anyhow::Result<()> {
     use crate::file_state::{
         acquire_path_lock, check_partial_read, check_stale_read, init_global, parent_stale_files,
         record_read, record_write, try_global,
@@ -174,16 +153,29 @@ async fn global_api_tracks_reads_writes_and_locks() {
     assert!(try_global().is_some());
 
     let path = PathBuf::from("/tmp/test/global-flow.txt");
-    record_read("reader", path.clone(), SystemTime::now(), true);
+    record_read(
+        "reader",
+        path.clone(),
+        SystemTime::now(),
+        true,
+        Instant::now(),
+    );
     assert!(check_partial_read("reader", &path).is_some());
     assert!(check_stale_read("reader", &path).is_none());
 
-    record_read("reader", path.clone(), SystemTime::now(), false);
+    record_read(
+        "reader",
+        path.clone(),
+        SystemTime::now(),
+        false,
+        Instant::now(),
+    );
     assert!(check_partial_read("reader", &path).is_none());
 
     std::thread::sleep(Duration::from_millis(5));
     record_write("writer", path.clone());
-    let msg = check_stale_read("reader", &path).expect("stale after sibling write");
+    let msg = check_stale_read("reader", &path)
+        .ok_or_else(|| anyhow::anyhow!("expected a stale read after the sibling write"))?;
     assert!(msg.contains("writer"));
     assert_eq!(
         parent_stale_files("reader", &["writer".to_string()]),
@@ -193,4 +185,132 @@ async fn global_api_tracks_reads_writes_and_locks() {
 
     let guard = acquire_path_lock(&path).await;
     assert!(guard.is_some());
+    Ok(())
+}
+
+#[test]
+fn paths_written_by_keeps_a_path_after_another_agent_overwrites_it() {
+    let coord = fresh_coordinator();
+    let path = PathBuf::from("/tmp/test/history-shared.txt");
+    coord.record_write("child-1", path.clone());
+    coord.record_write("child-2", path.clone());
+
+    let result = coord.paths_written_by(&["child-1".to_string(), "child-2".to_string()]);
+    assert_eq!(result.get("child-1"), Some(&vec![path.clone()]));
+    assert_eq!(result.get("child-2"), Some(&vec![path]));
+}
+
+#[test]
+fn sibling_write_during_an_in_flight_read_is_reported_stale() {
+    let coord = fresh_coordinator();
+    let path = PathBuf::from("/tmp/test/in-flight.txt");
+    let read_started = Instant::now();
+    std::thread::sleep(Duration::from_millis(2));
+    // The sibling write lands after the reader opened the file but before
+    // the reader got round to recording the read.
+    coord.record_write("sibling", path.clone());
+    std::thread::sleep(Duration::from_millis(2));
+    coord.record_read(
+        "reader",
+        path.clone(),
+        SystemTime::now(),
+        false,
+        read_started,
+    );
+
+    assert_eq!(coord.stale_reads_for_parent("reader"), vec![path]);
+}
+
+// ── A later writer must not mask an earlier one ─────────────
+
+/// Parent reads `path`, then child-1 and child-2 write it in that order.
+fn parent_read_then_two_child_writes(coord: &FileStateCoordinator, path: &Path) {
+    coord.record_read(
+        "parent",
+        path.to_path_buf(),
+        SystemTime::now(),
+        false,
+        Instant::now(),
+    );
+    std::thread::sleep(Duration::from_millis(2));
+    coord.record_write("child-1", path.to_path_buf());
+    std::thread::sleep(Duration::from_millis(2));
+    coord.record_write("child-2", path.to_path_buf());
+}
+
+#[test]
+fn parent_stale_files_reports_an_earlier_child_write_masked_by_a_later_one() {
+    let coord = fresh_coordinator();
+    let path = PathBuf::from("/tmp/test/masked-child.txt");
+    parent_read_then_two_child_writes(&coord, &path);
+
+    assert_eq!(
+        coord.parent_stale_files("parent", &["child-1".to_string()]),
+        vec![path.clone()]
+    );
+    assert_eq!(
+        coord.parent_stale_files("parent", &["child-2".to_string()]),
+        vec![path]
+    );
+}
+
+#[test]
+fn stale_reads_for_parent_reports_a_path_written_by_two_children() {
+    let coord = fresh_coordinator();
+    let path = PathBuf::from("/tmp/test/two-children.txt");
+    parent_read_then_two_child_writes(&coord, &path);
+
+    assert_eq!(coord.stale_reads_for_parent("parent"), vec![path]);
+}
+
+#[test]
+fn own_later_write_does_not_mask_a_sibling_write_during_an_in_flight_read() {
+    // The reader opens the file, a sibling writes it, the reader then writes
+    // it through another tool, and only afterwards records the read that
+    // started before the sibling's write. The latest writer is the reader
+    // itself, but the content it holds may predate the sibling's change.
+    let coord = fresh_coordinator();
+    let path = PathBuf::from("/tmp/test/own-write-masks.txt");
+    let read_started = Instant::now();
+    std::thread::sleep(Duration::from_millis(2));
+    coord.record_write("sibling", path.clone());
+    std::thread::sleep(Duration::from_millis(2));
+    coord.record_write("reader", path.clone());
+    coord.record_read(
+        "reader",
+        path.clone(),
+        SystemTime::now(),
+        false,
+        read_started,
+    );
+
+    assert_eq!(coord.stale_reads_for_parent("reader"), vec![path.clone()]);
+    let msg = coord.check_stale_read("reader", &path);
+    assert!(
+        msg.as_deref().is_some_and(|m| m.contains("'sibling'")),
+        "got: {msg:?}"
+    );
+}
+
+#[test]
+fn a_write_before_the_read_is_not_stale() {
+    let coord = fresh_coordinator();
+    let path = PathBuf::from("/tmp/test/write-then-read.txt");
+    coord.record_write("child-1", path.clone());
+    std::thread::sleep(Duration::from_millis(2));
+    coord.record_read(
+        "parent",
+        path.clone(),
+        SystemTime::now(),
+        false,
+        Instant::now(),
+    );
+
+    assert!(coord.stale_reads_for_parent("parent").is_empty());
+    assert!(
+        coord
+            .parent_stale_files("parent", &["child-1".to_string()])
+            .is_empty()
+    );
+    assert_eq!(coord.check_stale_read("parent", &path), None);
 }

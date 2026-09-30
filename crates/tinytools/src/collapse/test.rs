@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::unnecessary_literal_bound)]
 
 use super::*;
-use crate::ToolResult;
+use crate::{Tool, ToolResult};
 use async_trait::async_trait;
 
 struct Stub {
@@ -29,9 +29,6 @@ impl Tool for Stub {
     }
     fn external_effect(&self) -> bool {
         self.external
-    }
-    fn external_effect_with_args(&self, args: &Value) -> bool {
-        self.external || args["outbound"] == true
     }
     async fn execute(&self, _args: Value) -> anyhow::Result<ToolResult> {
         Ok(ToolResult::success("ok"))
@@ -191,66 +188,6 @@ fn external_effect_is_true_when_any_member_has_one() {
 }
 
 #[test]
-fn action_effect_resolution_uses_member_arguments_and_static_fallback_is_safe() {
-    let clean = stub("c", json!({}), PermissionLevel::ReadOnly, false);
-    let actions = [CollapsedAction {
-        action: "c",
-        tool: &clean,
-    }];
-    assert!(!external_effect_for_action(
-        &actions,
-        &json!({"action": "c"})
-    ));
-    assert!(external_effect_for_action(
-        &actions,
-        &json!({"action": "c", "outbound": true})
-    ));
-    assert!(external_effect_for_action(
-        &actions,
-        &json!({"action": "unknown"})
-    ));
-    assert!(any_external_effect(&actions));
-    assert!(!any_external_effect(&[]));
-}
-
-#[test]
-fn shared_property_types_are_exposed_as_schema_alternatives() {
-    let text = stub(
-        "text",
-        json!({"properties": {"value": {"type": "string"}}}),
-        PermissionLevel::None,
-        false,
-    );
-    let number = stub(
-        "number",
-        json!({"properties": {"value": {"type": "number"}}}),
-        PermissionLevel::None,
-        false,
-    );
-    let actions = [
-        CollapsedAction {
-            action: "text",
-            tool: &text,
-        },
-        CollapsedAction {
-            action: "number",
-            tool: &number,
-        },
-    ];
-    let schema = merge_action_schemas(&actions);
-    let alternatives = schema["properties"]["value"]["anyOf"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|schema| schema["type"].as_str().unwrap())
-        .collect::<std::collections::BTreeSet<_>>();
-    assert_eq!(
-        alternatives,
-        std::collections::BTreeSet::from(["number", "string"])
-    );
-}
-
-#[test]
 fn the_dispatch_key_does_not_reach_the_member() {
     // Several members set `additionalProperties: false`.
     let args = json!({"action": "runs", "job_id": "j1"});
@@ -274,42 +211,504 @@ fn an_unknown_action_names_the_valid_ones() {
     );
 }
 
-#[test]
-fn resolves_actions_and_formats_debug_without_exposing_the_tool() {
-    let a = stub("a", json!({}), PermissionLevel::Dangerous, false);
-    let actions = [CollapsedAction {
-        action: "add",
-        tool: &a,
-    }];
-    assert!(resolve(&actions, "add").is_some());
-    assert!(resolve(&actions, "missing").is_none());
-    assert!(format!("{:?}", actions[0]).contains("tool: \"a\""));
-    assert_eq!(strictest_permission(&actions), PermissionLevel::Dangerous);
+/// A member that classifies per call: `force` raises it to `Write` and `send`
+/// makes it effectful. It answers `Dangerous` if the dispatch key reaches it,
+/// so a test can tell the key was stripped first.
+struct ArgAware;
+
+#[async_trait]
+impl Tool for ArgAware {
+    fn name(&self) -> &str {
+        "arg_aware"
+    }
+    fn description(&self) -> &str {
+        "classifies per call"
+    }
+    fn parameters_schema(&self) -> Value {
+        json!({"type": "object", "properties": {"force": {"type": "boolean"}}})
+    }
+    fn permission_level_with_args(&self, args: &Value) -> PermissionLevel {
+        if args.get("action").is_some() {
+            PermissionLevel::Dangerous
+        } else if args["force"] == json!(true) {
+            PermissionLevel::Write
+        } else {
+            PermissionLevel::ReadOnly
+        }
+    }
+    fn external_effect_with_args(&self, args: &Value) -> bool {
+        args["send"] == json!(true)
+    }
+    async fn execute(&self, _args: Value) -> anyhow::Result<ToolResult> {
+        Ok(ToolResult::success("ok"))
+    }
 }
 
 #[test]
-fn schema_merge_skips_missing_properties_and_non_object_property_specs() {
-    let absent = stub("absent", json!({}), PermissionLevel::None, false);
-    let malformed = stub(
-        "malformed",
-        json!({"properties": {"ignored": null}}),
-        PermissionLevel::None,
+fn the_argument_free_permission_is_the_least_member() {
+    // The `Tool` contract: a multi-action tool must not be statically hidden
+    // from a caller entitled to its read-only half.
+    let read = stub("r", json!({}), PermissionLevel::ReadOnly, false);
+    let execute = stub("x", json!({}), PermissionLevel::Execute, false);
+    let actions = [
+        CollapsedAction {
+            action: "x",
+            tool: &execute,
+        },
+        CollapsedAction {
+            action: "r",
+            tool: &read,
+        },
+    ];
+    assert_eq!(minimum_permission(&actions), PermissionLevel::ReadOnly);
+    assert_eq!(minimum_permission(&[]), PermissionLevel::None);
+}
+
+#[test]
+fn the_per_call_permission_is_the_selected_members_own_answer() {
+    let aware = ArgAware;
+    let execute = stub("x", json!({}), PermissionLevel::Execute, false);
+    let actions = [
+        CollapsedAction {
+            action: "aware",
+            tool: &aware,
+        },
+        CollapsedAction {
+            action: "x",
+            tool: &execute,
+        },
+    ];
+    assert_eq!(
+        permission_for_args(&actions, &json!({"action": "aware"})),
+        PermissionLevel::ReadOnly
+    );
+    assert_eq!(
+        permission_for_args(&actions, &json!({"action": "aware", "force": true})),
+        PermissionLevel::Write
+    );
+    assert_eq!(
+        permission_for_args(&actions, &json!({"action": "x"})),
+        PermissionLevel::Execute
+    );
+}
+
+#[test]
+fn a_call_selecting_no_member_gets_the_strictest_permission() {
+    let aware = ArgAware;
+    let execute = stub("x", json!({}), PermissionLevel::Execute, false);
+    let actions = [
+        CollapsedAction {
+            action: "aware",
+            tool: &aware,
+        },
+        CollapsedAction {
+            action: "x",
+            tool: &execute,
+        },
+    ];
+    assert_eq!(
+        permission_for_args(&actions, &json!({"action": "nope"})),
+        PermissionLevel::Execute
+    );
+    assert_eq!(
+        permission_for_args(&actions, &json!({})),
+        PermissionLevel::Execute
+    );
+}
+
+#[test]
+fn the_per_call_external_effect_reaches_a_member_that_classifies_per_call() {
+    // `ArgAware` leaves the argument-free `external_effect` at `false`, so an
+    // aggregate of static answers would wave an effectful call past the gate.
+    let aware = ArgAware;
+    let actions = [CollapsedAction {
+        action: "aware",
+        tool: &aware,
+    }];
+    assert!(any_external_effect(&actions));
+    assert!(external_effect_for_args(
+        &actions,
+        &json!({"action": "aware", "send": true})
+    ));
+    assert!(!external_effect_for_args(
+        &actions,
+        &json!({"action": "aware"})
+    ));
+}
+
+#[test]
+fn a_call_selecting_no_member_gets_the_aggregate_external_effect() {
+    let dirty = stub("d", json!({}), PermissionLevel::ReadOnly, true);
+    let actions = [CollapsedAction {
+        action: "d",
+        tool: &dirty,
+    }];
+    assert!(external_effect_for_args(
+        &actions,
+        &json!({"action": "nope"})
+    ));
+}
+
+#[test]
+fn conflicting_definitions_of_a_shared_property_are_all_kept() {
+    let a = stub(
+        "a",
+        json!({"type": "object", "properties": {"id": {"type": "string"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let b = stub(
+        "b",
+        json!({"type": "object", "properties": {"id": {"type": "integer", "minimum": 1}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let forward = [
+        CollapsedAction {
+            action: "a",
+            tool: &a,
+        },
+        CollapsedAction {
+            action: "b",
+            tool: &b,
+        },
+    ];
+    let reversed = [forward[1], forward[0]];
+    let merged = merge_action_schemas(&forward);
+    let alternatives = merged["properties"]["id"]["anyOf"].as_array().unwrap();
+    assert_eq!(alternatives.len(), 2);
+    assert!(alternatives.contains(&json!({"type": "string", "description": "a"})));
+    assert!(alternatives.contains(&json!({"type": "integer", "minimum": 1, "description": "b"})));
+    // Neither member's constraints depend on which came first.
+    let reordered = merge_action_schemas(&reversed);
+    let reordered_alternatives = reordered["properties"]["id"]["anyOf"].as_array().unwrap();
+    assert_eq!(reordered_alternatives.len(), 2);
+    assert!(reordered_alternatives.contains(&json!({"type": "string", "description": "a"})));
+}
+
+#[test]
+fn definitions_differing_only_in_description_are_one_property() {
+    let a = stub(
+        "a",
+        json!({"type": "object", "properties": {"id": {"type": "string", "description": "A."}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let b = stub(
+        "b",
+        json!({"type": "object", "properties": {"id": {"type": "string", "description": "B."}}}),
+        PermissionLevel::ReadOnly,
         false,
     );
     let actions = [
         CollapsedAction {
-            action: "absent",
-            tool: &absent,
+            action: "a",
+            tool: &a,
         },
         CollapsedAction {
-            action: "malformed",
-            tool: &malformed,
+            action: "b",
+            tool: &b,
         },
     ];
-    assert_eq!(
-        merge_action_schemas(&actions)["properties"]["ignored"],
-        Value::Null
+    let merged = merge_action_schemas(&actions);
+    assert!(merged["properties"]["id"].get("anyOf").is_none());
+    assert_eq!(merged["properties"]["id"]["type"], json!("string"));
+}
+
+#[test]
+fn a_member_property_named_action_cannot_replace_the_discriminator() {
+    let clash = stub(
+        "clash",
+        json!({"type": "object", "properties": {"action": {"type": "integer"}}}),
+        PermissionLevel::ReadOnly,
+        false,
     );
-    assert_eq!(strictest_permission(&[]), PermissionLevel::None);
-    assert_eq!(args_without_action(&json!([1, 2])), json!([1, 2]));
+    let actions = [CollapsedAction {
+        action: "clash",
+        tool: &clash,
+    }];
+    let merged = merge_action_schemas(&actions);
+    assert_eq!(merged["properties"]["action"]["type"], json!("string"));
+    assert_eq!(merged["properties"]["action"]["enum"], json!(["clash"]));
+}
+
+#[test]
+fn member_definitions_are_preserved_and_namespaced() {
+    let first = stub(
+        "first",
+        json!({"type":"object", "properties":{"options":{"$ref":"#/$defs/Options"}}, "$defs":{"Options":{"type":"string"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let second = stub(
+        "second",
+        json!({"type":"object", "properties":{"options":{"$ref":"#/$defs/Options"}}, "$defs":{"Options":{"type":"integer"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let merged = merge_action_schemas(&[
+        CollapsedAction {
+            action: "first",
+            tool: &first,
+        },
+        CollapsedAction {
+            action: "second",
+            tool: &second,
+        },
+    ]);
+    let first_definition = namespace_definition("first", "Options");
+    let second_definition = namespace_definition("second", "Options");
+    assert_eq!(
+        merged["properties"]["options"]["anyOf"][0]["$ref"],
+        format!("#/$defs/{first_definition}")
+    );
+    assert_eq!(
+        merged["properties"]["options"]["anyOf"][1]["$ref"],
+        format!("#/$defs/{second_definition}")
+    );
+    assert_eq!(merged["$defs"][first_definition]["type"], "string");
+    assert_eq!(merged["$defs"][second_definition]["type"], "integer");
+}
+
+#[test]
+fn nested_definition_refs_keep_their_pointer_suffix() {
+    let member = stub(
+        "read",
+        json!({
+            "properties": {"options": {"$ref": "#/$defs/Options/properties/id"}},
+            "$defs": {"Options": {"properties": {"id": {"type": "string"}}}}
+        }),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let merged = merge_action_schemas(&[CollapsedAction {
+        action: "read",
+        tool: &member,
+    }]);
+    let definition = namespace_definition("read", "Options");
+    assert_eq!(
+        merged["properties"]["options"]["$ref"],
+        format!("#/$defs/{definition}/properties/id")
+    );
+}
+
+#[test]
+fn draft_07_definitions_are_namespaced_and_rewritten() {
+    let tool = stub(
+        "read",
+        json!({"properties":{"options":{"$ref":"#/definitions/Options"}}, "definitions":{"Options":{"type":"string"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let actions = vec![CollapsedAction {
+        action: "read",
+        tool: &tool,
+    }];
+    let merged = merge_action_schemas(&actions);
+    let definition = namespace_definition("read", "Options");
+    assert_eq!(
+        merged["properties"]["options"]["$ref"],
+        format!("#/$defs/{definition}")
+    );
+    assert_eq!(merged["$defs"][definition]["type"], "string");
+}
+
+#[test]
+fn refs_inside_prefix_items_are_rewritten() {
+    let tool = stub(
+        "read",
+        json!({"properties":{"tuple":{"prefixItems":[{"$ref":"#/$defs/Item"}]}}, "$defs":{"Item":{"type":"string"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let actions = vec![CollapsedAction {
+        action: "read",
+        tool: &tool,
+    }];
+    let merged = merge_action_schemas(&actions);
+    let definition = namespace_definition("read", "Item");
+    assert_eq!(
+        merged["properties"]["tuple"]["prefixItems"][0]["$ref"],
+        format!("#/$defs/{definition}")
+    );
+}
+
+#[test]
+fn draft_07_additional_items_and_schema_dependencies_rewrite_refs() {
+    let tool = stub(
+        "read",
+        json!({
+            "properties": {
+                "tuple": {
+                    "items": [{"type": "string"}],
+                    "additionalItems": {"$ref": "#/definitions/Extra"},
+                    "dependencies": {
+                        "other": {"$ref": "#/$defs/Extra"},
+                        "legacy": ["name"]
+                    }
+                }
+            },
+            "definitions": {"Extra": {"type": "integer"}}
+        }),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let actions = vec![CollapsedAction {
+        action: "read",
+        tool: &tool,
+    }];
+
+    let merged = merge_action_schemas(&actions);
+    let definition = namespace_definition("read", "Extra");
+    let tuple = &merged["properties"]["tuple"];
+    assert_eq!(
+        tuple["additionalItems"]["$ref"],
+        format!("#/$defs/{definition}")
+    );
+    assert_eq!(
+        tuple["dependencies"]["other"]["$ref"],
+        format!("#/$defs/{definition}")
+    );
+    assert_eq!(tuple["dependencies"]["legacy"], json!(["name"]));
+}
+
+#[test]
+fn member_definition_namespaces_cannot_collide() {
+    let read_file = stub(
+        "read_file",
+        json!({"properties":{"first":{"$ref":"#/$defs/Options"}}, "$defs":{"Options":{"type":"string"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let read = stub(
+        "read",
+        json!({"properties":{"second":{"$ref":"#/$defs/file_Options"}}, "$defs":{"file_Options":{"type":"integer"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let merged = merge_action_schemas(&[
+        CollapsedAction {
+            action: "read_file",
+            tool: &read_file,
+        },
+        CollapsedAction {
+            action: "read",
+            tool: &read,
+        },
+    ]);
+    let first_name = namespace_definition("read_file", "Options");
+    let second_name = namespace_definition("read", "file_Options");
+    assert_ne!(first_name, second_name);
+    assert_eq!(
+        merged["properties"]["first"]["$ref"],
+        format!("#/$defs/{first_name}")
+    );
+    assert_eq!(
+        merged["properties"]["second"]["$ref"],
+        format!("#/$defs/{second_name}")
+    );
+    assert_eq!(merged["$defs"][first_name]["type"], "string");
+    assert_eq!(merged["$defs"][second_name]["type"], "integer");
+}
+
+#[test]
+fn local_ref_like_instance_data_is_not_rewritten() {
+    let edit = stub(
+        "edit",
+        json!({"properties":{"value":{"const":{"$ref":"#/$defs/Options"}}}, "$defs":{"Options":{"type":"string"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let merged = merge_action_schemas(&[CollapsedAction {
+        action: "edit",
+        tool: &edit,
+    }]);
+    assert_eq!(
+        merged["properties"]["value"]["const"]["$ref"],
+        "#/$defs/Options"
+    );
+}
+
+#[test]
+fn validation_accepts_a_well_formed_family() {
+    let a = stub("a", json!({}), PermissionLevel::ReadOnly, false);
+    let b = stub("b", json!({}), PermissionLevel::Write, false);
+    let actions = [
+        CollapsedAction {
+            action: "a",
+            tool: &a,
+        },
+        CollapsedAction {
+            action: "b",
+            tool: &b,
+        },
+    ];
+    assert_eq!(validate_actions(&actions), Ok(()));
+}
+
+#[test]
+fn validation_rejects_an_empty_family() {
+    assert_eq!(validate_actions(&[]), Err(CollapseError::Empty));
+    assert_eq!(
+        CollapseError::Empty.to_string(),
+        "a collapsed tool needs at least one action"
+    );
+}
+
+#[test]
+fn validation_rejects_a_duplicated_action() {
+    let a = stub("a", json!({}), PermissionLevel::ReadOnly, false);
+    let actions = [
+        CollapsedAction {
+            action: "a",
+            tool: &a,
+        },
+        CollapsedAction {
+            action: "a",
+            tool: &a,
+        },
+    ];
+    let err = validate_actions(&actions).unwrap_err();
+    assert_eq!(
+        err,
+        CollapseError::DuplicateAction {
+            action: "a".to_string()
+        }
+    );
+    assert_eq!(err.to_string(), "action 'a' is declared more than once");
+}
+
+#[test]
+fn validation_rejects_a_member_declaring_the_reserved_property() {
+    let clash = stub(
+        "clash",
+        json!({"type": "object", "properties": {"action": {"type": "string"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let actions = [CollapsedAction {
+        action: "clash",
+        tool: &clash,
+    }];
+    let err = validate_actions(&actions).unwrap_err();
+    assert_eq!(
+        err,
+        CollapseError::ReservedProperty {
+            action: "clash".to_string()
+        }
+    );
+    assert!(err.to_string().contains("reserved for dispatch"));
+}
+
+#[test]
+fn the_debug_form_names_the_member_tool() {
+    let a = stub("member", json!({}), PermissionLevel::ReadOnly, false);
+    let entry = CollapsedAction {
+        action: "a",
+        tool: &a,
+    };
+    assert_eq!(
+        format!("{entry:?}"),
+        r#"CollapsedAction { action: "a", tool: "member" }"#
+    );
 }

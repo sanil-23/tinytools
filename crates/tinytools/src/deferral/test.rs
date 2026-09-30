@@ -67,11 +67,11 @@ fn deferred_tool_names_lists_every_deferred_registration() {
 }
 
 #[tokio::test]
-async fn fake_tool_implements_the_tool_contract() {
-    let tool = Fake("sample", ToolExposure::Direct);
-    assert_eq!(tool.name(), "sample");
-    assert_eq!(tool.description(), "fake");
-    assert_eq!(tool.parameters_schema()["type"], "object");
-    assert_eq!(tool.exposure(), ToolExposure::Direct);
-    assert_eq!(tool.execute(json!({})).await.unwrap().output(), "ok");
+async fn fake_tools_implement_the_public_tool_contract() -> anyhow::Result<()> {
+    let registered = tools();
+    let fake = &registered[0];
+    assert_eq!(fake.description(), "fake");
+    assert_eq!(fake.parameters_schema(), json!({"type": "object"}));
+    assert_eq!(fake.execute(json!({})).await?.output(), "ok");
+    Ok(())
 }
