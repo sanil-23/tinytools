@@ -123,10 +123,7 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
             }
             owners.entry(name.clone()).or_default().push(entry.action);
             let known = definitions.entry(name.clone()).or_default();
-            if !known
-                .iter()
-                .any(|existing| same_definition(existing, spec))
-            {
+            if !known.iter().any(|existing| same_definition(existing, spec)) {
                 known.push(spec.clone());
             }
         }
