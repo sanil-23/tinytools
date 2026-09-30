@@ -645,8 +645,8 @@ impl GitOperationsTool {
 #[cfg(test)]
 mod config_test;
 #[cfg(test)]
+mod ops_test;
+#[cfg(test)]
 mod render_test;
 #[cfg(test)]
 mod test;
-#[cfg(test)]
-mod ops_test;

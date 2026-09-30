@@ -234,3 +234,6 @@ fn is_skipped(name: &str) -> bool {
 
 #[cfg(test)]
 mod test;
+
+#[cfg(test)]
+mod extra_test;

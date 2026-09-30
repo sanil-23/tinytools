@@ -199,7 +199,11 @@ async fn edit_reports_rate_limits() {
         0,
     ));
     let result = limited.execute(edit_args("f.txt")).await.unwrap();
-    assert!(result.output().contains("too many actions in the last hour"));
+    assert!(
+        result
+            .output()
+            .contains("too many actions in the last hour")
+    );
 
     let racy = EditFileTool::new(Arc::new(RacyGate(test_security(dir.path().to_path_buf()))));
     let result = racy.execute(edit_args("f.txt")).await.unwrap();
@@ -251,11 +255,18 @@ async fn edit_uses_the_context_workspace_when_one_is_threaded() {
     let tool = EditFileTool::new(test_security(home.path().to_path_buf()));
     let context = WorkspaceContext::at(isolated.path());
     let result = tool
-        .execute_with_context(edit_args("w.txt"), ToolCallOptions::default(), Some(&context))
+        .execute_with_context(
+            edit_args("w.txt"),
+            ToolCallOptions::default(),
+            Some(&context),
+        )
         .await
         .unwrap();
     assert!(!result.is_error, "{}", result.output());
-    assert_eq!(std::fs::read_to_string(isolated.path().join("w.txt")).unwrap(), "bbb");
+    assert_eq!(
+        std::fs::read_to_string(isolated.path().join("w.txt")).unwrap(),
+        "bbb"
+    );
 }
 
 #[tokio::test]

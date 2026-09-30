@@ -406,8 +406,15 @@ async fn file_write_refuses_to_write_through_an_in_workspace_symlink() {
         .await
         .unwrap();
     assert!(result.is_error);
-    assert!(result.output().contains("Refusing to write through symlink"));
-    assert_eq!(std::fs::read_to_string(dir.path().join("real.txt")).unwrap(), "real");
+    assert!(
+        result
+            .output()
+            .contains("Refusing to write through symlink")
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("real.txt")).unwrap(),
+        "real"
+    );
 }
 
 #[tokio::test]

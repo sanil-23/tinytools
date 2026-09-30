@@ -10,9 +10,13 @@ use crate::filesystem::test_support::{AutonomyLevel, TestGate, WorkspaceContext}
 use tempfile::TempDir;
 
 fn git(dir: &std::path::Path, args: &[&str]) {
-    let out = hermetic(std::process::Command::new("git").args(args).current_dir(dir))
-        .output()
-        .expect("spawn git");
+    let out = hermetic(
+        std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir),
+    )
+    .output()
+    .expect("spawn git");
     assert!(
         out.status.success(),
         "git {args:?} failed: {}",
@@ -99,7 +103,9 @@ async fn diff_with_several_files_and_hunks_splits_them() {
     std::fs::write(tmp.path().join("big.txt"), &long).unwrap();
     git(tmp.path(), &["add", "big.txt"]);
     git(tmp.path(), &["commit", "-m", "big"]);
-    let edited = long.replace("line1\n", "LINE1\n").replace("line38\n", "LINE38\n");
+    let edited = long
+        .replace("line1\n", "LINE1\n")
+        .replace("line38\n", "LINE38\n");
     std::fs::write(tmp.path().join("big.txt"), edited).unwrap();
     std::fs::write(tmp.path().join("a.txt"), "different\n").unwrap();
     let tool = test_tool(tmp.path());
@@ -107,7 +113,13 @@ async fn diff_with_several_files_and_hunks_splits_them() {
     let result = run(&tool, json!({"operation": "diff"})).await;
     let parsed: serde_json::Value = serde_json::from_str(&result.output()).unwrap();
     assert!(parsed["file_count"].as_u64().unwrap() >= 3);
-    assert!(parsed["hunks"].as_array().unwrap().iter().any(|h| h["header"].is_string()));
+    assert!(
+        parsed["hunks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|h| h["header"].is_string())
+    );
 }
 
 #[tokio::test]

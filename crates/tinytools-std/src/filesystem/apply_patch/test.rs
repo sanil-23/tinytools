@@ -243,3 +243,246 @@ async fn apply_patch_create_still_obeys_the_path_policy() {
         .unwrap();
     assert!(result.is_error, "{}", result.output());
 }
+
+// ── Coverage of limits, budgets, guards, symlinks and write failures ────
+
+use crate::filesystem::test_support::{AutonomyLevel, RacyGate, WorkspaceContext};
+
+fn one_edit(path: &str, old: &str, new: &str) -> serde_json::Value {
+    json!({"edits": [{"path": path, "old_string": old, "new_string": new}]})
+}
+
+#[tokio::test]
+async fn apply_patch_rejects_too_many_edits() {
+    let dir = tempfile::tempdir().unwrap();
+    let edits: Vec<_> = (0..=MAX_EDITS)
+        .map(|_| json!({"path": "a.txt", "old_string": "a", "new_string": "b"}))
+        .collect();
+    let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool.execute(json!({"edits": edits})).await.unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("Too many edits"));
+}
+
+#[tokio::test]
+async fn apply_patch_enforces_autonomy_and_budgets() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("a.txt"), "x").unwrap();
+    let args = one_edit("a.txt", "x", "y");
+
+    let read_only = ApplyPatchTool::new(TestGate::with(
+        dir.path().to_path_buf(),
+        AutonomyLevel::ReadOnly,
+        100,
+    ));
+    let result = read_only.execute(args.clone()).await.unwrap();
+    assert!(result.output().contains("autonomy is read-only"));
+
+    let limited = ApplyPatchTool::new(TestGate::with(
+        dir.path().to_path_buf(),
+        AutonomyLevel::Supervised,
+        0,
+    ));
+    let result = limited.execute(args.clone()).await.unwrap();
+    assert!(
+        result
+            .output()
+            .contains("too many actions in the last hour")
+    );
+
+    let racy = ApplyPatchTool::new(Arc::new(RacyGate(test_security(dir.path().to_path_buf()))));
+    let result = racy.execute(args).await.unwrap();
+    assert!(result.output().contains("action budget exhausted"));
+}
+
+#[tokio::test]
+async fn apply_patch_resolves_an_absolute_create_target() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("abs_new.txt");
+    let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool
+        .execute(one_edit(target.to_str().unwrap(), "", "created"))
+        .await
+        .unwrap();
+    assert!(!result.is_error, "{}", result.output());
+    assert_eq!(std::fs::read_to_string(target).unwrap(), "created");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn apply_patch_refuses_to_edit_through_a_symlink() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("real.txt"), "x").unwrap();
+    std::os::unix::fs::symlink(dir.path().join("real.txt"), dir.path().join("link.txt")).unwrap();
+    let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool.execute(one_edit("link.txt", "x", "y")).await.unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("refusing to edit through symlink"));
+}
+
+#[tokio::test]
+async fn apply_patch_reports_unresolvable_and_unreadable_targets() {
+    let dir = tempfile::tempdir().unwrap();
+    let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool
+        .execute(one_edit("absent.txt", "x", "y"))
+        .await
+        .unwrap();
+    assert!(result.is_error);
+    assert!(result.output().starts_with("edit[0]: "));
+    assert!(result.output().contains("Failed to resolve"));
+
+    std::fs::write(dir.path().join("bin.dat"), [0xff_u8, 0xfe]).unwrap();
+    let result = tool.execute(one_edit("bin.dat", "x", "y")).await.unwrap();
+    assert!(result.output().contains("failed to read bin.dat"));
+}
+
+#[tokio::test]
+async fn apply_patch_reports_a_create_whose_parent_cannot_be_made() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("file.txt"), "x").unwrap();
+    let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool
+        .execute(one_edit("file.txt/child.txt", "", "body"))
+        .await
+        .unwrap();
+    assert!(result.is_error);
+    assert!(
+        result
+            .output()
+            .contains("failed to create parent of file.txt/child.txt")
+    );
+}
+
+#[tokio::test]
+async fn apply_patch_refuses_an_oversized_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = std::fs::File::create(dir.path().join("big.txt")).unwrap();
+    file.set_len(MAX_FILE_BYTES + 1).unwrap();
+    let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool.execute(one_edit("big.txt", "x", "y")).await.unwrap();
+    assert!(result.output().contains("file too large"));
+}
+
+#[tokio::test]
+async fn apply_patch_needs_replace_all_for_repeated_matches() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("r.txt"), "a a a").unwrap();
+    let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool.execute(one_edit("r.txt", "a", "b")).await.unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("matches 3 times"));
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("r.txt")).unwrap(),
+        "a a a"
+    );
+
+    let result = tool
+        .execute(json!({"edits": [
+            {"path": "r.txt", "old_string": "a", "new_string": "b", "replace_all": true}
+        ]}))
+        .await
+        .unwrap();
+    assert!(!result.is_error, "{}", result.output());
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("r.txt")).unwrap(),
+        "b b b"
+    );
+}
+
+#[tokio::test]
+async fn apply_patch_uses_the_context_workspace_when_one_is_threaded() {
+    let home = tempfile::tempdir().unwrap();
+    let isolated = tempfile::tempdir().unwrap();
+    std::fs::write(isolated.path().join("w.txt"), "x").unwrap();
+    let tool = ApplyPatchTool::new(test_security(home.path().to_path_buf()));
+    let context = WorkspaceContext::at(isolated.path());
+    let result = tool
+        .execute_with_context(
+            one_edit("w.txt", "x", "y"),
+            ToolCallOptions::default(),
+            Some(&context),
+        )
+        .await
+        .unwrap();
+    assert!(!result.is_error, "{}", result.output());
+    assert_eq!(
+        std::fs::read_to_string(isolated.path().join("w.txt")).unwrap(),
+        "y"
+    );
+}
+
+#[tokio::test]
+async fn apply_patch_honours_the_file_state_guard_and_records_writes() {
+    crate::file_state::init_global(true);
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().canonicalize().unwrap().join("g.txt");
+    std::fs::write(&target, "x").unwrap();
+    let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+    let agent = format!("ap-agent-{}", dir.path().display());
+    let other = format!("ap-other-{}", dir.path().display());
+    let run = |agent: String| {
+        crate::file_state::with_file_state_agent_id(
+            agent,
+            tool.execute(one_edit("g.txt", "x", "y")),
+        )
+    };
+
+    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), true);
+    assert!(
+        run(agent.clone())
+            .await
+            .unwrap()
+            .output()
+            .contains("Partial read")
+    );
+
+    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), false);
+    crate::file_state::record_write(&other, target.clone());
+    assert!(
+        run(agent.clone())
+            .await
+            .unwrap()
+            .output()
+            .contains("Stale read")
+    );
+
+    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), false);
+    let result = run(agent.clone()).await.unwrap();
+    assert!(!result.is_error, "{}", result.output());
+    assert!(crate::file_state::check_stale_read(&agent, &target).is_none());
+}
+
+/// A create whose file name exceeds the OS limit passes every check and then
+/// fails at write time. Whichever order the batch writes in, no file from the
+/// failed batch may be left changed, and the error must say it was restored.
+#[tokio::test]
+async fn apply_patch_restores_earlier_writes_when_a_later_write_fails() {
+    let long_name = "n".repeat(300);
+    let mut saw_restore = false;
+    for _ in 0..40 {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("keep.txt"), "orig").unwrap();
+        let tool = ApplyPatchTool::new(test_security(dir.path().to_path_buf()));
+        let result = tool
+            .execute(json!({"edits": [
+                {"path": "keep.txt", "old_string": "orig", "new_string": "changed"},
+                {"path": "fresh.txt", "old_string": "", "new_string": "new"},
+                {"path": long_name, "old_string": "", "new_string": "boom"},
+            ]}))
+            .await
+            .unwrap();
+        assert!(result.is_error, "{}", result.output());
+        assert!(result.output().contains("Failed to write"));
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("keep.txt")).unwrap(),
+            "orig"
+        );
+        assert!(!dir.path().join("fresh.txt").exists());
+        saw_restore |= result.output().contains("restored from snapshot");
+    }
+    assert!(
+        saw_restore,
+        "no iteration wrote a file before the failing one"
+    );
+}

@@ -229,3 +229,6 @@ fn page_contents(contents: &str, path: &str, offset: usize) -> String {
 
 #[cfg(test)]
 mod test;
+
+#[cfg(test)]
+mod extra_test;

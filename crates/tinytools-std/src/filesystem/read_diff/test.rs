@@ -64,3 +64,81 @@ async fn execute_no_changes_in_clean_git_repo() {
     assert!(!result.is_error);
     assert!(result.output().contains("No changes found."));
 }
+
+fn git_in(dir: &std::path::Path, args: &[&str]) {
+    let out = std::process::Command::new("git")
+        .args(["-c", "user.email=t@example.invalid", "-c", "user.name=T"])
+        .args(args)
+        .current_dir(dir)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+fn repo_with_change() -> TempDir {
+    let tmp = TempDir::new().unwrap();
+    git_in(tmp.path(), &["init"]);
+    std::fs::write(tmp.path().join("a.txt"), "one\n").unwrap();
+    std::fs::write(tmp.path().join("b.txt"), "one\n").unwrap();
+    git_in(tmp.path(), &["add", "."]);
+    git_in(tmp.path(), &["commit", "-m", "init"]);
+    std::fs::write(tmp.path().join("a.txt"), "two\n").unwrap();
+    std::fs::write(tmp.path().join("b.txt"), "two\n").unwrap();
+    tmp
+}
+
+#[tokio::test]
+async fn path_filter_limits_the_diff() {
+    let tmp = repo_with_change();
+    let result = make_tool(&tmp)
+        .execute(json!({"path_filter": "a.txt"}))
+        .await
+        .unwrap();
+    assert!(!result.is_error);
+    assert!(result.output().contains("a.txt"));
+    assert!(!result.output().contains("b.txt"));
+}
+
+#[tokio::test]
+async fn base_ref_and_staged_flags_are_passed_to_git() {
+    let tmp = repo_with_change();
+    git_in(tmp.path(), &["add", "a.txt"]);
+    let staged = make_tool(&tmp)
+        .execute(json!({"staged": true}))
+        .await
+        .unwrap();
+    assert!(staged.output().contains("a.txt"));
+    assert!(!staged.output().contains("b.txt"));
+
+    let against_head = make_tool(&tmp)
+        .execute(json!({"base": "HEAD"}))
+        .await
+        .unwrap();
+    assert!(against_head.output().contains("b.txt"));
+
+    let bad_base = make_tool(&tmp)
+        .execute(json!({"base": "no-such-ref"}))
+        .await
+        .unwrap();
+    assert!(bad_base.is_error);
+}
+
+#[tokio::test]
+async fn a_workspace_descriptor_overrides_the_configured_directory() {
+    use crate::filesystem::test_support::WorkspaceContext;
+    let elsewhere = TempDir::new().unwrap();
+    let repo = repo_with_change();
+    let context = WorkspaceContext::at(repo.path());
+    let result = make_tool(&elsewhere)
+        .execute_with_context(json!({}), ToolCallOptions::default(), Some(&context))
+        .await
+        .unwrap();
+    assert!(!result.is_error, "{}", result.output());
+    assert!(result.output().contains("a.txt"));
+}

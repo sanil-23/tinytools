@@ -100,7 +100,10 @@ async fn a_symlinked_target_is_refused() {
         .unwrap();
     assert!(r.is_error);
     assert!(r.output().contains("Refusing to write through symlink"));
-    assert_eq!(std::fs::read_to_string(dir.path().join("real.txt")).unwrap(), "keep");
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("real.txt")).unwrap(),
+        "keep"
+    );
 }
 
 #[tokio::test]
@@ -118,7 +121,9 @@ async fn a_directory_in_the_way_reports_the_write_failure() {
 #[tokio::test]
 async fn size_labels_scale_to_kb_and_mb() {
     let dir = TempDir::new().unwrap();
-    let kb_rows: Vec<_> = (0..200).map(|i| json!({"n": format!("row-{i:04}-padding")})).collect();
+    let kb_rows: Vec<_> = (0..200)
+        .map(|i| json!({"n": format!("row-{i:04}-padding")}))
+        .collect();
     let r = tool_in(&dir)
         .execute(json!({"data": data(json!(kb_rows)), "filename": "kb.csv"}))
         .await

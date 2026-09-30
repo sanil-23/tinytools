@@ -79,3 +79,19 @@ async fn eslint_rejects_path_traversal() {
     assert!(result.is_error);
     assert!(result.output().contains("relative path"));
 }
+
+#[tokio::test]
+async fn a_workspace_descriptor_overrides_the_configured_directory() {
+    use crate::filesystem::test_support::WorkspaceContext;
+    let configured = TempDir::new().unwrap();
+    let isolated = TempDir::new().unwrap();
+    let context = WorkspaceContext::at(isolated.path());
+    // Neither directory has project files; the answer only proves the call
+    // ran, and the descriptor branch is what resolved the directory.
+    let result = make_tool(&configured)
+        .execute_with_context(json!({}), ToolCallOptions::default(), Some(&context))
+        .await
+        .unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("Could not detect project type"));
+}
