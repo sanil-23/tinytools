@@ -12,7 +12,7 @@ fn fresh_coordinator() -> Arc<FileStateCoordinator> {
 }
 
 #[test]
-fn record_and_check_no_staleness() -> anyhow::Result<()> {
+fn record_and_check_no_staleness() {
     let coord = fresh_coordinator();
     let path = PathBuf::from("/tmp/test/a.txt");
     coord.reads.write().insert(
@@ -30,7 +30,6 @@ fn record_and_check_no_staleness() -> anyhow::Result<()> {
         .map(|rs| rs.partial);
     assert_eq!(partial, Some(false));
     assert!(coord.writes.read().get(&path).is_none());
-    Ok(())
 }
 
 #[test]
@@ -84,7 +83,7 @@ fn own_write_does_not_trigger_staleness() {
 }
 
 #[test]
-fn partial_read_detected() -> anyhow::Result<()> {
+fn partial_read_detected() {
     let coord = fresh_coordinator();
     let path = PathBuf::from("/tmp/test/d.txt");
     coord.reads.write().insert(
@@ -101,7 +100,6 @@ fn partial_read_detected() -> anyhow::Result<()> {
         .get(&("agent-a".to_string(), path.clone()))
         .map(|rs| rs.partial);
     assert_eq!(partial, Some(true));
-    Ok(())
 }
 
 #[test]
