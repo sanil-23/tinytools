@@ -471,6 +471,28 @@ fn member_definitions_are_preserved_and_namespaced() {
 }
 
 #[test]
+fn nested_definition_refs_keep_their_pointer_suffix() {
+    let member = stub(
+        "read",
+        json!({
+            "properties": {"options": {"$ref": "#/$defs/Options/properties/id"}},
+            "$defs": {"Options": {"properties": {"id": {"type": "string"}}}}
+        }),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let merged = merge_action_schemas(&[CollapsedAction {
+        action: "read",
+        tool: &member,
+    }]);
+    let definition = namespace_definition("read", "Options");
+    assert_eq!(
+        merged["properties"]["options"]["$ref"],
+        format!("#/$defs/{definition}/properties/id")
+    );
+}
+
+#[test]
 fn member_definition_namespaces_cannot_collide() {
     let read_file = stub(
         "read_file",

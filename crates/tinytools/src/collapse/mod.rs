@@ -224,9 +224,12 @@ fn rewrite_local_refs(value: &mut Value, action: &str) {
     match value {
         Value::Object(object) => {
             if let Some(Value::String(reference)) = object.get_mut("$ref")
-                && let Some(name) = reference.strip_prefix("#/$defs/")
+                && let Some(pointer) = reference.strip_prefix("#/$defs/")
+                && let (token, suffix) = pointer.split_once('/').unwrap_or((pointer, ""))
+                && let Some(name) = decode_pointer_token(token)
             {
-                *reference = format!("#/$defs/{}", namespace_definition(action, name));
+                let namespaced = namespace_definition(action, &name);
+                *reference = format!("#/$defs/{}{}", encode_pointer_token(&namespaced), suffix);
             }
             for key in [
                 "$defs",
@@ -271,6 +274,29 @@ fn rewrite_local_refs(value: &mut Value, action: &str) {
             .for_each(|schema| rewrite_local_refs(schema, action)),
         _ => {}
     }
+}
+
+/// Decode one JSON Pointer token, leaving malformed escape sequences intact.
+fn decode_pointer_token(token: &str) -> Option<String> {
+    let mut decoded = String::with_capacity(token.len());
+    let mut chars = token.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '~' {
+            decoded.push(ch);
+            continue;
+        }
+        match chars.next()? {
+            '0' => decoded.push('~'),
+            '1' => decoded.push('/'),
+            _ => return None,
+        }
+    }
+    Some(decoded)
+}
+
+/// Escape a definition name for its JSON Pointer token.
+fn encode_pointer_token(token: &str) -> String {
+    token.replace('~', "~0").replace('/', "~1")
 }
 
 /// Whether two property schemas constrain the same thing, ignoring the
