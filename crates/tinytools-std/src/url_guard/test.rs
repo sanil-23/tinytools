@@ -42,19 +42,11 @@ fn rejects_malformed_ports() {
 }
 
 #[tokio::test]
-async fn system_dns_resolves_numeric_loopback_without_external_network() {
-    let resolved = super::resolve_host_ips("127.0.0.1".to_string(), 80)
-        .await
-        .expect("numeric loopback resolution is local and deterministic");
-    assert_eq!(
-        resolved,
-        vec![
-            "127.0.0.1"
-                .parse::<std::net::IpAddr>()
-                .expect("valid IPv4 literal")
-        ]
-    );
+async fn system_dns_resolves_numeric_loopback_without_external_network() -> anyhow::Result<()> {
+    let resolved = super::resolve_host_ips("127.0.0.1".to_string(), 80).await?;
+    assert_eq!(resolved, vec!["127.0.0.1".parse::<std::net::IpAddr>()?]);
     assert!(super::resolve_host_ips(String::new(), 80).await.is_err());
+    Ok(())
 }
 
 #[test]
@@ -356,11 +348,10 @@ fn blocks_ipv6_documentation_range() {
 }
 
 #[test]
-fn blocks_nat64_translation_prefixes() -> anyhow::Result<()> {
+fn blocks_nat64_translation_prefixes() {
     assert!(is_private_or_local_host("64:ff9b:1::7f00:1"));
     assert!(is_private_or_local_host("64:ff9b::7f00:1"));
     assert!(!is_private_or_local_host("2001:4860:4860::8888"));
-    Ok(())
 }
 
 #[test]
