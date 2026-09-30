@@ -9,6 +9,7 @@ const PUSHOVER_API_URL: &str = "https://api.pushover.net/1/messages.json";
 const PUSHOVER_REQUEST_TIMEOUT_SECS: u64 = 15;
 
 /// Sends a Pushover notification using credentials from the workspace `.env`.
+#[derive(Debug)]
 pub struct PushoverTool {
     gate: Arc<dyn NetGate>,
     workspace_dir: PathBuf,

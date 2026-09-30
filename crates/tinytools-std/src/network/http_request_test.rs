@@ -293,6 +293,7 @@ async fn serve(responses: Vec<String>) -> (std::net::SocketAddr, Arc<std::sync::
     (addr, seen)
 }
 
+#[derive(Debug)]
 struct RecordingHook {
     settled: Arc<std::sync::Mutex<Vec<PaymentOutcome>>>,
     fail: bool,

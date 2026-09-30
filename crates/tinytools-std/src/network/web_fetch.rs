@@ -18,7 +18,7 @@ use tinytools::{PermissionLevel, Tool, ToolResult};
 ///
 /// Content transforms are somebody else's specialty (the host wires in
 /// whichever engine it has), so the tool asks instead of owning one.
-pub trait HtmlExtractor: Send + Sync {
+pub trait HtmlExtractor: std::fmt::Debug + Send + Sync {
     /// Whether `body`, which arrived with no usable `Content-Type`, is HTML.
     fn looks_like_html(&self, body: &str) -> bool;
 
@@ -27,6 +27,7 @@ pub trait HtmlExtractor: Send + Sync {
 }
 
 /// Fetches a URL and returns its text body.
+#[derive(Debug)]
 pub struct WebFetchTool {
     gate: Arc<dyn NetGate>,
     allowed_domains: Vec<String>,

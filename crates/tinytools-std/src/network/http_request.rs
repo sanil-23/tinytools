@@ -41,7 +41,7 @@ pub struct PaymentOutcome {
 /// headers it returns. What paying means (a wallet, a ledger, a budget) is
 /// entirely the host's.
 #[async_trait]
-pub trait PaymentHook: Send + Sync {
+pub trait PaymentHook: std::fmt::Debug + Send + Sync {
     /// Produce the payment headers for a 402 from `url`.
     ///
     /// `response_headers` are the 402 response's headers, which carry the
@@ -59,6 +59,7 @@ pub trait PaymentHook: Send + Sync {
 
 /// HTTP request tool for API interactions.
 /// Supports GET, POST, PUT, DELETE methods with configurable security.
+#[derive(Debug)]
 pub struct HttpRequestTool {
     gate: Arc<dyn NetGate>,
     allowed_domains: Vec<String>,
@@ -151,6 +152,7 @@ impl HttpRequestTool {
         result
     }
 
+    #[allow(dead_code)]
     fn redact_headers_for_display(headers: &[(String, String)]) -> Vec<(String, String)> {
         headers
             .iter()

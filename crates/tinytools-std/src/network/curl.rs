@@ -19,6 +19,7 @@ use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
 /// Downloads a file from an http(s) URL into the workspace.
+#[derive(Debug)]
 pub struct CurlTool {
     gate: Arc<dyn NetGate>,
     allowed_domains: Vec<String>,
