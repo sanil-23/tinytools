@@ -236,3 +236,97 @@ fn sibling_write_during_an_in_flight_read_is_reported_stale() {
 
     assert_eq!(coord.stale_reads_for_parent("reader"), vec![path]);
 }
+
+// ── A later writer must not mask an earlier one ─────────────
+
+/// Parent reads `path`, then child-1 and child-2 write it in that order.
+fn parent_read_then_two_child_writes(coord: &FileStateCoordinator, path: &PathBuf) {
+    coord.record_read(
+        "parent",
+        path.clone(),
+        SystemTime::now(),
+        false,
+        Instant::now(),
+    );
+    std::thread::sleep(Duration::from_millis(2));
+    coord.record_write("child-1", path.clone());
+    std::thread::sleep(Duration::from_millis(2));
+    coord.record_write("child-2", path.clone());
+}
+
+#[test]
+fn parent_stale_files_reports_an_earlier_child_write_masked_by_a_later_one() {
+    let coord = fresh_coordinator();
+    let path = PathBuf::from("/tmp/test/masked-child.txt");
+    parent_read_then_two_child_writes(&coord, &path);
+
+    assert_eq!(
+        coord.parent_stale_files("parent", &["child-1".to_string()]),
+        vec![path.clone()]
+    );
+    assert_eq!(
+        coord.parent_stale_files("parent", &["child-2".to_string()]),
+        vec![path]
+    );
+}
+
+#[test]
+fn stale_reads_for_parent_reports_a_path_written_by_two_children() {
+    let coord = fresh_coordinator();
+    let path = PathBuf::from("/tmp/test/two-children.txt");
+    parent_read_then_two_child_writes(&coord, &path);
+
+    assert_eq!(coord.stale_reads_for_parent("parent"), vec![path]);
+}
+
+#[test]
+fn own_later_write_does_not_mask_a_sibling_write_during_an_in_flight_read() {
+    // The reader opens the file, a sibling writes it, the reader then writes
+    // it through another tool, and only afterwards records the read that
+    // started before the sibling's write. The latest writer is the reader
+    // itself, but the content it holds may predate the sibling's change.
+    let coord = fresh_coordinator();
+    let path = PathBuf::from("/tmp/test/own-write-masks.txt");
+    let read_started = Instant::now();
+    std::thread::sleep(Duration::from_millis(2));
+    coord.record_write("sibling", path.clone());
+    std::thread::sleep(Duration::from_millis(2));
+    coord.record_write("reader", path.clone());
+    coord.record_read(
+        "reader",
+        path.clone(),
+        SystemTime::now(),
+        false,
+        read_started,
+    );
+
+    assert_eq!(coord.stale_reads_for_parent("reader"), vec![path.clone()]);
+    let msg = coord.check_stale_read("reader", &path);
+    assert!(
+        msg.as_deref().is_some_and(|m| m.contains("'sibling'")),
+        "got: {msg:?}"
+    );
+}
+
+#[test]
+fn a_write_before_the_read_is_not_stale() {
+    let coord = fresh_coordinator();
+    let path = PathBuf::from("/tmp/test/write-then-read.txt");
+    coord.record_write("child-1", path.clone());
+    std::thread::sleep(Duration::from_millis(2));
+    coord.record_read(
+        "parent",
+        path.clone(),
+        SystemTime::now(),
+        false,
+        Instant::now(),
+    );
+
+    assert!(coord.stale_reads_for_parent("parent").is_empty());
+    assert!(
+        coord
+            .parent_stale_files("parent", &["child-1".to_string()])
+            .is_empty()
+    );
+    assert_eq!(coord.check_stale_read("parent", &path), None);
+}

@@ -135,21 +135,27 @@ impl FileStateCoordinator {
 /// error message when stale, `None` when safe.
 #[must_use]
 pub fn check_stale_read(agent_id: &str, resolved_path: &PathBuf) -> Option<String> {
-    let coord = try_global()?;
-    let reads = coord.reads.read();
-    let writes = coord.writes.read();
-    let read_key = (agent_id.to_string(), resolved_path.clone());
-    let read_stamp = reads.get(&read_key)?;
-    let ws = writes.get(resolved_path)?;
-    if ws.writer != agent_id && ws.timestamp > read_stamp.timestamp {
-        let display_path = resolved_path.display();
-        Some(format!(
-            "Stale read: file '{display_path}' was modified by agent '{}' after your last read. \
-             Re-read the file before editing.",
-            ws.writer
-        ))
-    } else {
-        None
+    try_global()?.check_stale_read(agent_id, resolved_path)
+}
+
+impl FileStateCoordinator {
+    /// [`check_stale_read`] against this coordinator.
+    pub(crate) fn check_stale_read(&self, agent_id: &str, resolved_path: &Path) -> Option<String> {
+        let reads = self.reads.read();
+        let writes = self.writes.read();
+        let read_key = (agent_id.to_string(), resolved_path.to_path_buf());
+        let read_stamp = reads.get(&read_key)?;
+        let ws = writes.get(resolved_path)?;
+        if ws.writer != agent_id && ws.timestamp > read_stamp.timestamp {
+            let display_path = resolved_path.display();
+            Some(format!(
+                "Stale read: file '{display_path}' was modified by agent '{}' after your last read. \
+                 Re-read the file before editing.",
+                ws.writer
+            ))
+        } else {
+            None
+        }
     }
 }
 
@@ -195,24 +201,34 @@ pub async fn acquire_path_lock(resolved_path: &Path) -> Option<OwnedMutexGuard<(
 /// were subsequently written by any agent in `child_agent_ids`.
 #[must_use]
 pub fn parent_stale_files(parent_agent_id: &str, child_agent_ids: &[String]) -> Vec<PathBuf> {
-    let Some(coord) = try_global() else {
-        return Vec::new();
-    };
-    let reads = coord.reads.read();
-    let writes = coord.writes.read();
-    let mut stale = Vec::new();
-    for ((agent_id, path), read_stamp) in reads.iter() {
-        if agent_id != parent_agent_id {
-            continue;
+    try_global().map_or_else(Vec::new, |coord| {
+        coord.parent_stale_files(parent_agent_id, child_agent_ids)
+    })
+}
+
+impl FileStateCoordinator {
+    /// [`parent_stale_files`] against this coordinator.
+    pub(crate) fn parent_stale_files(
+        &self,
+        parent_agent_id: &str,
+        child_agent_ids: &[String],
+    ) -> Vec<PathBuf> {
+        let reads = self.reads.read();
+        let writes = self.writes.read();
+        let mut stale = Vec::new();
+        for ((agent_id, path), read_stamp) in reads.iter() {
+            if agent_id != parent_agent_id {
+                continue;
+            }
+            if let Some(ws) = writes.get(path)
+                && child_agent_ids.contains(&ws.writer)
+                && ws.timestamp > read_stamp.timestamp
+            {
+                stale.push(path.clone());
+            }
         }
-        if let Some(ws) = writes.get(path)
-            && child_agent_ids.contains(&ws.writer)
-            && ws.timestamp > read_stamp.timestamp
-        {
-            stale.push(path.clone());
-        }
+        stale.sort();
+        stale.dedup();
+        stale
     }
-    stale.sort();
-    stale.dedup();
-    stale
 }
