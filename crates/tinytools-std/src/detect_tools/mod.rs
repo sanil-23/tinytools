@@ -39,14 +39,19 @@ impl Default for DetectToolsTool {
 #[must_use]
 pub fn find_on_path(name: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
-    let exts: Vec<String> = if cfg!(windows) {
-        std::env::var("PATHEXT")
-            .unwrap_or_else(|_| ".EXE;.CMD;.BAT".to_string())
-            .split(';')
-            .map(std::string::ToString::to_string)
-            .collect()
-    } else {
-        vec![String::new()]
+    let exts: Vec<String> = {
+        #[cfg(windows)]
+        {
+            std::env::var("PATHEXT")
+                .unwrap_or_else(|_| ".EXE;.CMD;.BAT".to_string())
+                .split(';')
+                .map(std::string::ToString::to_string)
+                .collect()
+        }
+        #[cfg(not(windows))]
+        {
+            vec![String::new()]
+        }
     };
     for dir in std::env::split_paths(&path) {
         for ext in &exts {

@@ -9,6 +9,25 @@ fn name_and_permission() {
     assert_eq!(tool.permission_level(), PermissionLevel::ReadOnly);
 }
 
+#[test]
+fn default_tool_exposes_read_only_probe_schema() {
+    let tool = <DetectToolsTool as Default>::default();
+    assert!(!tool.description().is_empty());
+    assert_eq!(
+        tool.parameters_schema()["properties"]["tools"]["type"],
+        "array"
+    );
+}
+
+#[tokio::test]
+async fn empty_or_malformed_tool_list_uses_the_default_catalog() {
+    for args in [json!({}), json!({"tools": [1, null]})] {
+        let result = DetectToolsTool::new().execute(args).await.unwrap();
+        let payload: serde_json::Value = serde_json::from_str(&result.output()).unwrap();
+        assert_eq!(payload["probed"], super::DEFAULT_CANDIDATES.len());
+    }
+}
+
 #[tokio::test]
 async fn missing_tool_reported_missing() {
     let tool = DetectToolsTool::new();

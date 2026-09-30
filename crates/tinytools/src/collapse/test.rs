@@ -30,6 +30,9 @@ impl Tool for Stub {
     fn external_effect(&self) -> bool {
         self.external
     }
+    fn external_effect_with_args(&self, args: &Value) -> bool {
+        self.external || args["outbound"] == true
+    }
     async fn execute(&self, _args: Value) -> anyhow::Result<ToolResult> {
         Ok(ToolResult::success("ok"))
     }
@@ -171,7 +174,7 @@ fn permission_is_the_strictest_member_not_the_first() {
 fn external_effect_is_true_when_any_member_has_one() {
     let clean = stub("c", json!({}), PermissionLevel::ReadOnly, false);
     let dirty = stub("d", json!({}), PermissionLevel::ReadOnly, true);
-    assert!(!any_external_effect(&[CollapsedAction {
+    assert!(any_external_effect(&[CollapsedAction {
         action: "c",
         tool: &clean
     }]));
@@ -185,6 +188,66 @@ fn external_effect_is_true_when_any_member_has_one() {
             tool: &dirty
         },
     ]));
+}
+
+#[test]
+fn action_effect_resolution_uses_member_arguments_and_static_fallback_is_safe() {
+    let clean = stub("c", json!({}), PermissionLevel::ReadOnly, false);
+    let actions = [CollapsedAction {
+        action: "c",
+        tool: &clean,
+    }];
+    assert!(!external_effect_for_action(
+        &actions,
+        &json!({"action": "c"})
+    ));
+    assert!(external_effect_for_action(
+        &actions,
+        &json!({"action": "c", "outbound": true})
+    ));
+    assert!(external_effect_for_action(
+        &actions,
+        &json!({"action": "unknown"})
+    ));
+    assert!(any_external_effect(&actions));
+    assert!(!any_external_effect(&[]));
+}
+
+#[test]
+fn shared_property_types_are_exposed_as_schema_alternatives() {
+    let text = stub(
+        "text",
+        json!({"properties": {"value": {"type": "string"}}}),
+        PermissionLevel::None,
+        false,
+    );
+    let number = stub(
+        "number",
+        json!({"properties": {"value": {"type": "number"}}}),
+        PermissionLevel::None,
+        false,
+    );
+    let actions = [
+        CollapsedAction {
+            action: "text",
+            tool: &text,
+        },
+        CollapsedAction {
+            action: "number",
+            tool: &number,
+        },
+    ];
+    let schema = merge_action_schemas(&actions);
+    let alternatives = schema["properties"]["value"]["anyOf"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|schema| schema["type"].as_str().unwrap())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        alternatives,
+        std::collections::BTreeSet::from(["number", "string"])
+    );
 }
 
 #[test]
@@ -209,4 +272,44 @@ fn an_unknown_action_names_the_valid_ones() {
         unknown_action_message(&actions, None),
         "missing required field `action` (expected add)"
     );
+}
+
+#[test]
+fn resolves_actions_and_formats_debug_without_exposing_the_tool() {
+    let a = stub("a", json!({}), PermissionLevel::Dangerous, false);
+    let actions = [CollapsedAction {
+        action: "add",
+        tool: &a,
+    }];
+    assert!(resolve(&actions, "add").is_some());
+    assert!(resolve(&actions, "missing").is_none());
+    assert!(format!("{:?}", actions[0]).contains("tool: \"a\""));
+    assert_eq!(strictest_permission(&actions), PermissionLevel::Dangerous);
+}
+
+#[test]
+fn schema_merge_skips_missing_properties_and_non_object_property_specs() {
+    let absent = stub("absent", json!({}), PermissionLevel::None, false);
+    let malformed = stub(
+        "malformed",
+        json!({"properties": {"ignored": null}}),
+        PermissionLevel::None,
+        false,
+    );
+    let actions = [
+        CollapsedAction {
+            action: "absent",
+            tool: &absent,
+        },
+        CollapsedAction {
+            action: "malformed",
+            tool: &malformed,
+        },
+    ];
+    assert_eq!(
+        merge_action_schemas(&actions)["properties"]["ignored"],
+        Value::Null
+    );
+    assert_eq!(strictest_permission(&[]), PermissionLevel::None);
+    assert_eq!(args_without_action(&json!([1, 2])), json!([1, 2]));
 }

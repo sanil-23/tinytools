@@ -159,6 +159,29 @@ fn normalize_empty_input_stays_empty_for_open_mode() {
     assert!(normalize_allowed_domains(vec![]).is_empty());
 }
 
+#[test]
+fn normalization_discards_invalid_domains_and_strips_ports() {
+    assert_eq!(
+        normalize_domain("https://.Example.com:8443/path").as_deref(),
+        Some("example.com")
+    );
+    assert_eq!(normalize_domain("   "), None);
+    assert_eq!(normalize_domain("bad domain"), None);
+    assert_eq!(normalize_domain("http://"), None);
+}
+
+#[test]
+fn host_and_port_parsing_reject_malformed_authorities() {
+    assert!(extract_host("https:///path").is_err());
+    assert!(extract_host("https://:80/path").is_err());
+    assert_eq!(extract_port("http://example.com").unwrap(), 80);
+    assert_eq!(extract_port("https://example.com").unwrap(), 443);
+    assert_eq!(extract_port("https://example.com:8443/path").unwrap(), 8443);
+    assert!(extract_port("https://example.com:nope").is_err());
+    assert!(extract_port("https://example.com:65536").is_err());
+    assert!(extract_port("https://[::1]:443").is_err());
+}
+
 #[tokio::test]
 async fn dns_check_with_empty_allowlist_allows_public_resolved_host() {
     // Open mode (empty allowlist) must still pass DNS check for public IPs.
@@ -173,7 +196,28 @@ async fn dns_check_with_empty_allowlist_allows_public_resolved_host() {
     )
     .await
     .unwrap();
-    assert_eq!(got, "https://example.com");
+    assert_eq!(got.url(), "https://example.com");
+    assert_eq!(got.addresses(), &["93.184.216.34:443".parse().unwrap()]);
+}
+
+#[tokio::test]
+async fn dns_check_skips_resolution_for_a_public_ip_literal() {
+    let got = validate_url_with_dns_check_with_resolver("https://8.8.8.8", &[], |_, _| async {
+        panic!("IP literals should not be resolved")
+    })
+    .await
+    .unwrap();
+    assert_eq!(got.url(), "https://8.8.8.8");
+    assert_eq!(got.addresses(), &["8.8.8.8:443".parse().unwrap()]);
+}
+
+#[tokio::test]
+async fn system_resolver_accepts_a_numeric_loopback_without_network_access() {
+    let addresses = resolve_host_ips("127.0.0.1".to_string(), 80).await.unwrap();
+    assert_eq!(
+        addresses,
+        vec!["127.0.0.1".parse::<std::net::IpAddr>().unwrap()]
+    );
 }
 
 #[tokio::test]
@@ -445,7 +489,8 @@ async fn dns_check_passes_for_public_resolved_ip() {
     )
     .await
     .unwrap();
-    assert_eq!(got, "https://example.com");
+    assert_eq!(got.url(), "https://example.com");
+    assert_eq!(got.addresses(), &["93.184.216.34:443".parse().unwrap()]);
 }
 
 #[tokio::test]
@@ -475,7 +520,8 @@ async fn dns_check_uses_explicit_port_for_resolution() {
     )
     .await
     .unwrap();
-    assert_eq!(got, "http://api.example.com:8080/status");
+    assert_eq!(got.url(), "http://api.example.com:8080/status");
+    assert_eq!(got.addresses(), &["93.184.216.34:8080".parse().unwrap()]);
 }
 
 #[tokio::test]

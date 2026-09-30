@@ -27,7 +27,32 @@
 //! hostname and re-validates the resolved IPs before the request is made.
 
 use std::future::Future;
-use std::net::{IpAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+
+/// A URL and the public socket addresses that passed the DNS SSRF check.
+///
+/// An HTTP client must connect to one of [`Self::addresses`] while retaining
+/// [`Self::url`] as the request authority (for Host and TLS SNI). Resolving
+/// [`Self::url`] again in the client would reopen the DNS-rebinding window.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ValidatedUrl {
+    url: String,
+    addresses: Vec<SocketAddr>,
+}
+
+impl ValidatedUrl {
+    /// The original validated URL, including its hostname for HTTP authority.
+    #[must_use]
+    pub fn url(&self) -> &str {
+        &self.url
+    }
+
+    /// Public addresses safe to use as the connection destination.
+    #[must_use]
+    pub fn addresses(&self) -> &[SocketAddr] {
+        &self.addresses
+    }
+}
 
 /// Validate a URL against the allowlist + SSRF rules. Returns the
 /// original URL on success.
@@ -94,13 +119,13 @@ pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result
 }
 
 /// Like [`validate_url`] but also resolves the hostname via DNS and
-/// verifies that none of the resolved IPs are private/local. This
-/// defends against DNS rebinding attacks where an attacker's domain
-/// initially resolves to a public IP (passing the allowlist) and then
-/// flips to 127.0.0.1 at request time.
+/// verifies that none of the resolved IPs are private/local. The returned
+/// addresses let the caller pin the actual connection and defend against DNS
+/// rebinding between validation and request time.
 ///
 /// Callers should use this function instead of `validate_url` in all
-/// paths that make outbound HTTP requests.
+/// paths that make outbound HTTP requests, and connect to one of the returned
+/// addresses while preserving the URL hostname as the HTTP authority.
 ///
 /// # Errors
 ///
@@ -109,7 +134,7 @@ pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result
 pub async fn validate_url_with_dns_check(
     raw_url: &str,
     allowed_domains: &[String],
-) -> anyhow::Result<String> {
+) -> anyhow::Result<ValidatedUrl> {
     validate_url_with_dns_check_with_resolver(raw_url, allowed_domains, resolve_host_ips).await
 }
 
@@ -117,7 +142,7 @@ async fn validate_url_with_dns_check_with_resolver<F, Fut>(
     raw_url: &str,
     allowed_domains: &[String],
     resolver: F,
-) -> anyhow::Result<String>
+) -> anyhow::Result<ValidatedUrl>
 where
     F: FnOnce(String, u16) -> Fut,
     Fut: Future<Output = anyhow::Result<Vec<IpAddr>>>,
@@ -128,11 +153,13 @@ where
 
     // If the host is already a valid IP literal, `is_private_or_local_host`
     // has already checked it above. We only need DNS resolution for hostnames.
-    if host.parse::<std::net::IpAddr>().is_ok() {
-        return Ok(url);
-    }
-
     let port = extract_port(&url)?;
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        return Ok(ValidatedUrl {
+            url,
+            addresses: vec![SocketAddr::new(ip, port)],
+        });
+    }
     log::debug!("[url_guard] resolving DNS for host={host} port={port}");
     let addrs = resolver(host.clone(), port).await?;
 
@@ -152,7 +179,13 @@ where
         }
     }
 
-    Ok(url)
+    Ok(ValidatedUrl {
+        url,
+        addresses: addrs
+            .into_iter()
+            .map(|ip| SocketAddr::new(ip, port))
+            .collect(),
+    })
 }
 
 async fn resolve_host_ips(host: String, port: u16) -> anyhow::Result<Vec<IpAddr>> {
