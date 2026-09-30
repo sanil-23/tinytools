@@ -13,10 +13,15 @@ publish = false
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
+# Structured diagnostics for DNS validation and SSRF refusals.
 log = "0.4"
+# Async path locks must remain non-blocking while callers hold them across I/O.
 parking_lot = "0.12"
+# Safe effective-credential executable checks for Unix PATH candidates.
+rustix = { version = "1", default-features = false, features = ["fs"] }
 serde_json = { workspace = true }
 tinytools = { path = "../tinytools", version = "0.4.1" }
+# `spawn_blocking` keeps synchronous system DNS resolution off async executor threads.
 tokio = { version = "1", default-features = false, features = ["rt", "sync"] }
 tracing = { workspace = true }
 

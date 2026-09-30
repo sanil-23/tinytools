@@ -53,9 +53,12 @@ pub fn find_on_path(name: &str) -> Option<PathBuf> {
                 // falsely report the tool as available; require the exec bit.
                 #[cfg(unix)]
                 {
-                    use std::os::unix::fs::PermissionsExt;
-                    let is_exec = std::fs::metadata(&candidate)
-                        .is_ok_and(|m| m.permissions().mode() & 0o111 != 0);
+                    let is_exec = rustix::fs::access(
+                        &candidate,
+                        rustix::fs::Access::EXECUTE,
+                        rustix::fs::AccessHow::EFFECTIVE,
+                    )
+                    .is_ok();
                     if is_exec {
                         return Some(candidate);
                     }

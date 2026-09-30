@@ -323,6 +323,14 @@ fn blocks_ipv6_documentation_range() {
 }
 
 #[test]
+fn blocks_nat64_translation_prefixes() -> anyhow::Result<()> {
+    assert!(is_private_or_local_host("64:ff9b:1::7f00:1"));
+    assert!(is_private_or_local_host("64:ff9b::7f00:1"));
+    assert!(!is_private_or_local_host("2001:4860:4860::8888"));
+    Ok(())
+}
+
+#[test]
 fn allows_public_ipv6() {
     assert!(!is_private_or_local_host("2607:f8b0:4004:800::200e"));
 }

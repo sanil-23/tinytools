@@ -111,6 +111,7 @@ pub fn validate_actions(actions: &[CollapsedAction<'_>]) -> Result<(), CollapseE
 pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
     // Every distinct definition of each property, in first-seen order.
     let mut definitions: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+    let mut merged_defs = Map::new();
     // Track which actions mentioned each property so a shared field reads as
     // shared rather than as belonging to whichever action happened to be first.
     let mut owners: BTreeMap<String, Vec<&str>> = BTreeMap::new();
@@ -126,8 +127,17 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
             }
             owners.entry(name.clone()).or_default().push(entry.action);
             let known = definitions.entry(name.clone()).or_default();
-            if !known.iter().any(|existing| same_definition(existing, spec)) {
-                known.push(spec.clone());
+            let mut property = spec.clone();
+            rewrite_local_refs(&mut property, entry.action);
+            if !known.iter().any(|existing| same_definition(existing, &property)) {
+                known.push(property);
+            }
+        }
+        if let Some(defs) = schema.get("$defs").and_then(Value::as_object) {
+            for (name, definition) in defs {
+                let mut definition = definition.clone();
+                rewrite_local_refs(&mut definition, entry.action);
+                merged_defs.insert(format!("{}_{}", entry.action, name), definition);
             }
         }
     }
@@ -189,11 +199,38 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
         }),
     );
 
-    json!({
+    let mut result = json!({
         "type": "object",
         "properties": Value::Object(merged),
         "required": [ACTION_KEY]
-    })
+    });
+    if !merged_defs.is_empty() {
+        result["$defs"] = Value::Object(merged_defs);
+    }
+    result
+}
+
+/// Namespace member-local JSON Schema definitions so merged properties keep
+/// resolving their references without collisions between actions.
+fn rewrite_local_refs(value: &mut Value, action: &str) {
+    match value {
+        Value::Object(object) => {
+            if let Some(Value::String(reference)) = object.get_mut("$ref") {
+                if let Some(name) = reference.strip_prefix("#/$defs/") {
+                    *reference = format!("#/$defs/{action}_{name}");
+                }
+            }
+            for child in object.values_mut() {
+                rewrite_local_refs(child, action);
+            }
+        }
+        Value::Array(values) => {
+            for child in values {
+                rewrite_local_refs(child, action);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Whether two property schemas constrain the same thing, ignoring the
