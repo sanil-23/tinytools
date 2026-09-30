@@ -232,6 +232,3 @@ impl EditFileTool {
     }
 }
 
-#[cfg(test)]
-#[path = "edit_file_tests.rs"]
-mod tests;

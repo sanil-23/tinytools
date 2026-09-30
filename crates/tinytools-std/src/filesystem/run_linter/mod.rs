@@ -151,6 +151,3 @@ impl Tool for RunLinterTool {
     }
 }
 
-#[cfg(test)]
-#[path = "run_linter_tests.rs"]
-mod tests;

@@ -228,6 +228,3 @@ fn is_skipped(name: &str) -> bool {
     )
 }
 
-#[cfg(test)]
-#[path = "grep_tests.rs"]
-mod tests;

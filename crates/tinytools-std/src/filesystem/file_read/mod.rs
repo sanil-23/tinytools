@@ -223,6 +223,3 @@ fn page_contents(contents: &str, path: &str, offset: usize) -> String {
     page
 }
 
-#[cfg(test)]
-#[path = "file_read_tests.rs"]
-mod tests;

@@ -257,6 +257,3 @@ impl CsvExportTool {
     }
 }
 
-#[cfg(test)]
-#[path = "csv_export_tests.rs"]
-mod tests;

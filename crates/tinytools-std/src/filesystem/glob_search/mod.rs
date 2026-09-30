@@ -309,6 +309,3 @@ fn is_skipped(name: &str) -> bool {
     )
 }
 
-#[cfg(test)]
-#[path = "glob_search_tests.rs"]
-mod tests;

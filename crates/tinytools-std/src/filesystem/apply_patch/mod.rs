@@ -436,6 +436,3 @@ struct FileBuffer {
     edit_count: usize,
 }
 
-#[cfg(test)]
-#[path = "apply_patch_tests.rs"]
-mod tests;

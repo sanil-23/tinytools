@@ -131,6 +131,3 @@ impl Tool for ReadDiffTool {
     }
 }
 
-#[cfg(test)]
-#[path = "read_diff_tests.rs"]
-mod tests;

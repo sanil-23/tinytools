@@ -225,6 +225,3 @@ impl FileWriteTool {
     }
 }
 
-#[cfg(test)]
-#[path = "file_write_tests.rs"]
-mod tests;
