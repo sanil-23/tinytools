@@ -440,6 +440,7 @@ fn recover_dsml_calls(after: &str) -> (Vec<ParsedToolCall>, usize) {
         // later value in trailing text. Continue only when DSML explicitly
         // connects the values with a name parameter.
         let Some(name_match) = name_match else {
+            cursor = json_end;
             break;
         };
         cursor = json_end + name_match.get(0).map_or(0, |m| m.end());
