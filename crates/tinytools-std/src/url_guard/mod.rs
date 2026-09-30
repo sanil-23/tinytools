@@ -10,7 +10,10 @@
 //! - **Strict allowlist** (`allowed_domains` is non-empty): only the listed
 //!   domains and their subdomains are permitted.
 //!
-//! Both modes enforce: http(s) only, no whitespace, no userinfo, no IPv6 hosts.
+//! Both modes enforce: http(s) only, no whitespace, no userinfo, no IPv6 hosts,
+//! no backslash anywhere, and no percent-encoding in the host — the last two
+//! because a WHATWG parser would read them as a different host than the one
+//! checked here.
 //!
 //! **Alternate IP notations** (octal, hex, decimal): Rust's `IpAddr::parse`
 //! rejects them so they are treated as plain hostnames. In strict-allowlist
@@ -50,6 +53,8 @@ pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result
     if !url.starts_with("http://") && !url.starts_with("https://") {
         anyhow::bail!("Only http:// and https:// URLs are allowed");
     }
+
+    reject_backslash(url)?;
 
     let host = extract_host(url)?;
 
@@ -230,21 +235,57 @@ pub fn normalize_domain(raw: &str) -> Option<String> {
     Some(d)
 }
 
-/// Extract the host part of an `http(s)` URL.
-///
-/// # Errors
-///
-/// Fails on a missing/empty host, userinfo, or an IPv6 literal.
-pub fn extract_host(url: &str) -> anyhow::Result<String> {
-    let rest = url
-        .strip_prefix("http://")
-        .or_else(|| url.strip_prefix("https://"))
-        .ok_or_else(|| anyhow::anyhow!("Only http:// and https:// URLs are allowed"))?;
+/// Refuse a URL containing `\\` anywhere. WHATWG URL parsers (browsers,
+/// `reqwest`'s `url` crate) treat `\\` as a path separator in `http(s)` URLs,
+/// so `http://127.0.0.1\\.example.com/` names `127.0.0.1` to a real client
+/// while a naive split on `/` would see a subdomain of `example.com`.
+fn reject_backslash(url: &str) -> anyhow::Result<()> {
+    if url.contains('\\') {
+        anyhow::bail!("URL cannot contain a backslash");
+    }
+    Ok(())
+}
+
+/// Split an `http(s)` URL into whether it is plain `http` and its authority
+/// (`host[:port]`), refusing inputs a WHATWG parser would read differently.
+fn split_authority(url: &str) -> anyhow::Result<(bool, &str)> {
+    let (is_http, rest) = if let Some(rest) = url.strip_prefix("http://") {
+        (true, rest)
+    } else if let Some(rest) = url.strip_prefix("https://") {
+        (false, rest)
+    } else {
+        anyhow::bail!("Only http:// and https:// URLs are allowed");
+    };
+
+    reject_backslash(url)?;
 
     let authority = rest
         .split(['/', '?', '#'])
         .next()
         .ok_or_else(|| anyhow::anyhow!("Invalid URL"))?;
+
+    // WHATWG percent-decodes the host, so `%31%32%37.0.0.1` is 127.0.0.1 on
+    // the wire while the literal text matches neither the SSRF checks nor
+    // the allowlist.
+    if authority.contains('%') {
+        anyhow::bail!("URL host cannot contain percent-encoded characters");
+    }
+
+    if authority.starts_with('[') {
+        anyhow::bail!("IPv6 hosts are not supported in http_request");
+    }
+
+    Ok((is_http, authority))
+}
+
+/// Extract the host part of an `http(s)` URL.
+///
+/// # Errors
+///
+/// Fails on a missing/empty host, userinfo, an IPv6 literal, a backslash
+/// anywhere in the URL, or percent-encoding in the authority.
+pub fn extract_host(url: &str) -> anyhow::Result<String> {
+    let (_, authority) = split_authority(url)?;
 
     if authority.is_empty() {
         anyhow::bail!("URL must include a host");
@@ -252,10 +293,6 @@ pub fn extract_host(url: &str) -> anyhow::Result<String> {
 
     if authority.contains('@') {
         anyhow::bail!("URL userinfo is not allowed");
-    }
-
-    if authority.starts_with('[') {
-        anyhow::bail!("IPv6 hosts are not supported in http_request");
     }
 
     let host = authority
@@ -277,22 +314,10 @@ pub fn extract_host(url: &str) -> anyhow::Result<String> {
 ///
 /// # Errors
 ///
-/// Fails when the URL has no valid port.
+/// Fails when the URL has no valid port, is an IPv6 literal, contains a
+/// backslash, or has percent-encoding in the authority.
 pub fn extract_port(url: &str) -> anyhow::Result<u16> {
-    let is_http = url.starts_with("http://");
-    let rest = url
-        .strip_prefix("http://")
-        .or_else(|| url.strip_prefix("https://"))
-        .ok_or_else(|| anyhow::anyhow!("Only http:// and https:// URLs are allowed"))?;
-
-    let authority = rest
-        .split(['/', '?', '#'])
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("Invalid URL"))?;
-
-    if authority.starts_with('[') {
-        anyhow::bail!("IPv6 hosts are not supported in http_request");
-    }
+    let (is_http, authority) = split_authority(url)?;
 
     if let Some((_, port)) = authority.rsplit_once(':') {
         if port.is_empty() || !port.chars().all(|ch| ch.is_ascii_digit()) {
