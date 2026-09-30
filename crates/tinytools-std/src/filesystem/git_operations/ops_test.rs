@@ -99,7 +99,7 @@ async fn diff_reports_hunks_for_unstaged_and_cached_changes() {
 #[tokio::test]
 async fn diff_with_several_files_and_hunks_splits_them() {
     let tmp = repo_with_commit();
-    let long: String = (0..40).map(|i| format!("line{i}\n")).collect();
+    let long: String = (0..40).fold(String::new(), |acc, i| acc + &format!("line{i}\n"));
     std::fs::write(tmp.path().join("big.txt"), &long).unwrap();
     git(tmp.path(), &["add", "big.txt"]);
     git(tmp.path(), &["commit", "-m", "big"]);

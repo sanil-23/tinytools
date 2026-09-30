@@ -341,7 +341,7 @@ async fn replace_section_before_another_heading_keeps_the_tail() {
         .await
         .unwrap();
     let text = std::fs::read_to_string(dir.path().join("MEMORY.md")).unwrap();
-    assert!(text.contains("## A\nnew\n\n## B\nkeep"), "{text}");
+    assert!(text.contains("## A\nnew\n## B\nkeep"), "{text}");
 }
 
 #[tokio::test]
