@@ -127,7 +127,7 @@ impl FileStateCoordinator {
 /// another agent wrote to it after this agent's last read. Returns an
 /// error message when stale, `None` when safe.
 #[must_use]
-pub fn check_stale_read(agent_id: &str, resolved_path: &PathBuf) -> Option<String> {
+pub fn check_stale_read(agent_id: &str, resolved_path: &Path) -> Option<String> {
     try_global()?.check_stale_read(agent_id, resolved_path)
 }
 
@@ -138,13 +138,14 @@ impl FileStateCoordinator {
         let writes = self.writes.read();
         let read_key = (agent_id.to_string(), resolved_path.to_path_buf());
         let read_stamp = reads.get(&read_key)?;
-        let writers = writes.get(resolved_path)?;
-        // Name the most recent of the writers that landed after the read.
-        let (writer, _) = writers_after_read(writers, agent_id, read_stamp.timestamp)
-            .max_by(|(a_name, a_at), (b_name, b_at)| a_at.cmp(b_at).then(b_name.cmp(a_name)))?;
+        let path_writers = writes.get(resolved_path)?;
+        // Name the most recent of the writers that landed after the read;
+        // on a tie, the alphabetically first, so the message is deterministic.
+        let (latest, _) = writers_after_read(path_writers, agent_id, read_stamp.timestamp)
+            .max_by_key(|&(name, written_at)| (written_at, std::cmp::Reverse(name)))?;
         let display_path = resolved_path.display();
         Some(format!(
-            "Stale read: file '{display_path}' was modified by agent '{writer}' after your last \
+            "Stale read: file '{display_path}' was modified by agent '{latest}' after your last \
              read. Re-read the file before editing."
         ))
     }

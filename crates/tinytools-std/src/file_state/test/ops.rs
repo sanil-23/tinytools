@@ -224,7 +224,7 @@ fn sibling_write_during_an_in_flight_read_is_reported_stale() {
 // ── A later writer must not mask an earlier one ─────────────
 
 /// Parent reads `path`, then child-1 and child-2 write it in that order.
-fn parent_read_then_two_child_writes(coord: &FileStateCoordinator, path: &PathBuf) {
+fn parent_read_then_two_child_writes(coord: &FileStateCoordinator, path: &Path) {
     coord.record_read(
         "parent",
         path.clone(),
