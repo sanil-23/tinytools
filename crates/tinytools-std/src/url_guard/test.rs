@@ -196,7 +196,8 @@ async fn dns_check_with_empty_allowlist_allows_public_resolved_host() {
     )
     .await
     .unwrap();
-    assert_eq!(got, "https://example.com");
+    assert_eq!(got.url(), "https://example.com");
+    assert_eq!(got.addresses(), &["93.184.216.34:443".parse().unwrap()]);
 }
 
 #[tokio::test]
@@ -206,7 +207,8 @@ async fn dns_check_skips_resolution_for_a_public_ip_literal() {
     })
     .await
     .unwrap();
-    assert_eq!(got, "https://8.8.8.8");
+    assert_eq!(got.url(), "https://8.8.8.8");
+    assert_eq!(got.addresses(), &["8.8.8.8:443".parse().unwrap()]);
 }
 
 #[tokio::test]
@@ -487,7 +489,8 @@ async fn dns_check_passes_for_public_resolved_ip() {
     )
     .await
     .unwrap();
-    assert_eq!(got, "https://example.com");
+    assert_eq!(got.url(), "https://example.com");
+    assert_eq!(got.addresses(), &["93.184.216.34:443".parse().unwrap()]);
 }
 
 #[tokio::test]
@@ -517,7 +520,8 @@ async fn dns_check_uses_explicit_port_for_resolution() {
     )
     .await
     .unwrap();
-    assert_eq!(got, "http://api.example.com:8080/status");
+    assert_eq!(got.url(), "http://api.example.com:8080/status");
+    assert_eq!(got.addresses(), &["93.184.216.34:8080".parse().unwrap()]);
 }
 
 #[tokio::test]

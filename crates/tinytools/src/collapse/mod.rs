@@ -28,9 +28,9 @@
 //!    once the action is known. A caller that ignores the arguments therefore
 //!    over-restricts rather than under-restricts.
 //!
-//! The same reasoning applies to [`Tool::external_effect`], which has no
-//! argument-aware variant at all: a collapsed tool reports `true` if *any*
-//! member does.
+//! A collapsed tool uses [`external_effect_for_action`] at the host's
+//! argument-aware approval point. Its argument-less declaration remains a
+//! conservative summary via [`any_external_effect`].
 
 use std::collections::BTreeMap;
 
@@ -72,7 +72,7 @@ impl std::fmt::Debug for CollapsedAction<'_> {
 /// where it can be specific rather than in a schema that has to be vague.
 #[must_use]
 pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
-    let mut properties: BTreeMap<String, Value> = BTreeMap::new();
+    let mut properties: BTreeMap<String, Vec<(&str, Value)>> = BTreeMap::new();
     // Track which actions mentioned each property so a shared field reads as
     // shared rather than as belonging to whichever action happened to be first.
     let mut owners: BTreeMap<String, Vec<&str>> = BTreeMap::new();
@@ -86,34 +86,47 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
             owners.entry(name.clone()).or_default().push(entry.action);
             properties
                 .entry(name.clone())
-                .or_insert_with(|| spec.clone());
+                .or_default()
+                .push((entry.action, spec.clone()));
         }
     }
 
     // Rewrite each description to name its actions. Done in a second pass so
     // the prefix can list every owner, which the first pass does not yet know.
-    for (name, spec) in &mut properties {
-        let Some(object) = spec.as_object_mut() else {
-            continue;
-        };
+    let mut merged_properties = BTreeMap::new();
+    for (name, specs) in properties {
         let owned_by = owners.get(name).map_or(&[][..], Vec::as_slice);
         // A property every action takes needs no prefix — saying so would be
         // noise on every line.
-        if owned_by.len() == actions.len() || owned_by.is_empty() {
-            continue;
-        }
+        let needs_prefix = owned_by.len() != actions.len() && !owned_by.is_empty();
         let prefix = owned_by.join("/");
-        let existing = object
-            .get("description")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-        let described = if existing.is_empty() {
-            prefix
-        } else {
-            format!("{prefix}: {existing}")
+        let mut alternatives = Vec::new();
+        for (action, mut spec) in specs {
+            if needs_prefix {
+                if let Some(object) = spec.as_object_mut() {
+                    let existing = object
+                        .get("description")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
+                    let described = if existing.is_empty() {
+                        format!("{action}: {prefix}")
+                    } else {
+                        format!("{action}: {existing}")
+                    };
+                    object.insert("description".to_string(), Value::String(described));
+                }
+            }
+            if !alternatives.contains(&spec) {
+                alternatives.push(spec);
+            }
+        }
+        let merged = match alternatives.as_slice() {
+            [only] => only.clone(),
+            many => json!({"anyOf": many}),
         };
-        object.insert("description".to_string(), Value::String(described));
+        // `spec` entries are deduplicated by schema; action ownership in the
+        // descriptions above tells the model which alternative applies.
+        merged_properties.insert(name, merged);
     }
 
     let enum_values: Vec<Value> = actions
@@ -130,7 +143,7 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
             "description": "Which operation to run."
         }),
     );
-    for (name, spec) in properties {
+    for (name, spec) in merged_properties {
         merged.insert(name, spec);
     }
 
@@ -157,7 +170,27 @@ pub fn strictest_permission(actions: &[CollapsedAction<'_>]) -> PermissionLevel 
 /// `true` when any member has an external effect.
 #[must_use]
 pub fn any_external_effect(actions: &[CollapsedAction<'_>]) -> bool {
-    actions.iter().any(|entry| entry.tool.external_effect())
+    // The static answer has no arguments to discriminate with. Conservatively
+    // require approval whenever there is a member; the per-action helper below
+    // gives the precise answer at the actual call boundary.
+    !actions.is_empty()
+}
+
+/// Resolve whether the selected member has an external effect for these args.
+///
+/// Hosts must call this at the approval gate for collapsed tools, passing the
+/// original model arguments so the member's argument-aware declaration runs.
+#[must_use]
+pub fn external_effect_for_action(actions: &[CollapsedAction<'_>], args: &Value) -> bool {
+    let Some(action) = args.get("action").and_then(Value::as_str) else {
+        return any_external_effect(actions);
+    };
+    let Some(member) = resolve(actions, action) else {
+        return any_external_effect(actions);
+    };
+    member
+        .tool
+        .external_effect_with_args(&args_without_action(args))
 }
 
 /// Order the permission levels from least to most privileged.

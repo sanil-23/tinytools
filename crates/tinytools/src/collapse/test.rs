@@ -30,6 +30,9 @@ impl Tool for Stub {
     fn external_effect(&self) -> bool {
         self.external
     }
+    fn external_effect_with_args(&self, _args: &Value) -> bool {
+        self.external
+    }
     async fn execute(&self, _args: Value) -> anyhow::Result<ToolResult> {
         Ok(ToolResult::success("ok"))
     }
@@ -171,7 +174,7 @@ fn permission_is_the_strictest_member_not_the_first() {
 fn external_effect_is_true_when_any_member_has_one() {
     let clean = stub("c", json!({}), PermissionLevel::ReadOnly, false);
     let dirty = stub("d", json!({}), PermissionLevel::ReadOnly, true);
-    assert!(!any_external_effect(&[CollapsedAction {
+    assert!(any_external_effect(&[CollapsedAction {
         action: "c",
         tool: &clean
     }]));
@@ -185,6 +188,61 @@ fn external_effect_is_true_when_any_member_has_one() {
             tool: &dirty
         },
     ]));
+}
+
+#[test]
+fn action_effect_resolution_uses_member_arguments_and_static_fallback_is_safe() {
+    let clean = stub("c", json!({}), PermissionLevel::ReadOnly, false);
+    let actions = [CollapsedAction {
+        action: "c",
+        tool: &clean,
+    }];
+    assert!(!external_effect_for_action(
+        &actions,
+        &json!({"action": "c"})
+    ));
+    assert!(external_effect_for_action(
+        &actions,
+        &json!({"action": "unknown"})
+    ));
+    assert!(any_external_effect(&actions));
+    assert!(!any_external_effect(&[]));
+}
+
+#[test]
+fn shared_property_types_are_exposed_as_schema_alternatives() {
+    let text = stub(
+        "text",
+        json!({"properties": {"value": {"type": "string"}}}),
+        PermissionLevel::None,
+        false,
+    );
+    let number = stub(
+        "number",
+        json!({"properties": {"value": {"type": "number"}}}),
+        PermissionLevel::None,
+        false,
+    );
+    let actions = [
+        CollapsedAction {
+            action: "text",
+            tool: &text,
+        },
+        CollapsedAction {
+            action: "number",
+            tool: &number,
+        },
+    ];
+    let alternatives = merge_action_schemas(&actions)["properties"]["value"]["anyOf"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|schema| schema["type"].as_str().unwrap())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        alternatives,
+        std::collections::BTreeSet::from(["number", "string"])
+    );
 }
 
 #[test]
