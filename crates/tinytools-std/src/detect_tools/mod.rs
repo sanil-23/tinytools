@@ -55,7 +55,7 @@ pub fn find_on_path(name: &str) -> Option<PathBuf> {
                 {
                     let is_exec = rustix::fs::accessat(
                         rustix::fs::CWD,
-                        &candidate,
+                        candidate.as_os_str().as_encoded_bytes(),
                         rustix::fs::Access::EXEC_OK,
                         rustix::fs::AtFlags::EACCESS,
                     )
