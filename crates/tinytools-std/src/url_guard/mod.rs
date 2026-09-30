@@ -451,7 +451,7 @@ pub fn is_non_global_v6(v6: std::net::Ipv6Addr) -> bool {
         || (segs[0] == 0x2001 && segs[1] == 0x0002 && segs[2] == 0)
         // Local-use translation (RFC 8215) and the well-known NAT64 prefix
         // can embed addresses that translate to private IPv4 destinations.
-        || (segs[0] == 0x0064 && segs[1] == 0xff9b && segs[2] & 0xff00 == 0x0100)
+        || (segs[0] == 0x0064 && segs[1] == 0xff9b && segs[2] == 1)
         || (segs[0] == 0x0064 && segs[1] == 0xff9b && segs[2] == 0 && segs[3] == 0)
         || (segs[0] & 0xfff0) == 0x3ff0
         || segs[0] == 0x5f00
