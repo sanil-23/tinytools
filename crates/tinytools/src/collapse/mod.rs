@@ -21,40 +21,66 @@
 //!    drift is silent: the model is told about a parameter the implementation
 //!    ignores, or not told about one it needs. [`merge_action_schemas`] derives
 //!    it from the same `parameters_schema()` the members serve.
-//! 2. **Permission is per action, and the argument-free answer is the
-//!    strictest.** [`Tool::permission_level`] has no arguments, so a collapsed
-//!    tool cannot answer it honestly; it returns the strictest level any member
-//!    requires, and [`Tool::permission_level_with_args`] gives the exact one
-//!    once the action is known. A caller that ignores the arguments therefore
-//!    over-restricts rather than under-restricts.
+//! 2. **Classification is per action.** The argument-free answers follow the
+//!    [`Tool`] contract for a multi-action tool: [`Tool::permission_level`] is
+//!    the *minimum* any member requires ([`minimum_permission`]), so a caller
+//!    who may run the read-only half is not statically shut out of the whole
+//!    tool, and [`Tool::external_effect`] is `true` if any member's is
+//!    ([`any_external_effect`]). The enforcement points are the
+//!    argument-aware variants, and those delegate to the member the call
+//!    selects — [`permission_for_args`] and [`external_effect_for_args`] — so
+//!    a member that classifies per call keeps doing so behind the collapse.
+//!    A call whose action resolves to no member falls back to the strictest
+//!    answer, even though it will fail before any member runs.
 //!
-//! The same reasoning applies to [`Tool::external_effect`], which has no
-//! argument-aware variant at all: a collapsed tool reports `true` if *any*
-//! member does.
+//! Call [`validate_actions`] once when building the collapsed tool: it rejects
+//! an empty family, a duplicated action name, and a member that declares the
+//! reserved `action` parameter.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use serde_json::{Map, Value, json};
 
 use crate::{PermissionLevel, Tool};
 
-/// One member of a collapsed family: the action name the model passes, and the
-/// tool that serves it.
-#[derive(Clone, Copy)]
-pub struct CollapsedAction<'a> {
-    /// The `action` value the model passes to select this member.
-    pub action: &'static str,
-    /// The member tool that serves the action.
-    pub tool: &'a dyn Tool,
-}
+mod types;
 
-impl std::fmt::Debug for CollapsedAction<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CollapsedAction")
-            .field("action", &self.action)
-            .field("tool", &self.tool.name())
-            .finish()
+pub use types::{CollapseError, CollapsedAction};
+
+/// The parameter a collapsed tool reserves to select the member.
+const ACTION_KEY: &str = "action";
+
+/// Check that `actions` can be served as one collapsed tool.
+///
+/// # Errors
+///
+/// Returns [`CollapseError::Empty`] when `actions` is empty,
+/// [`CollapseError::DuplicateAction`] when two members share an action name,
+/// and [`CollapseError::ReservedProperty`] when a member's schema declares a
+/// property named `action`.
+pub fn validate_actions(actions: &[CollapsedAction<'_>]) -> Result<(), CollapseError> {
+    if actions.is_empty() {
+        return Err(CollapseError::Empty);
     }
+    let mut seen = HashSet::new();
+    for entry in actions {
+        if !seen.insert(entry.action) {
+            return Err(CollapseError::DuplicateAction {
+                action: entry.action.to_string(),
+            });
+        }
+        let schema = entry.tool.parameters_schema();
+        if schema
+            .get("properties")
+            .and_then(Value::as_object)
+            .is_some_and(|props| props.contains_key(ACTION_KEY))
+        {
+            return Err(CollapseError::ReservedProperty {
+                action: entry.action.to_string(),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Build the collapsed `parameters_schema` from the members' own schemas.
