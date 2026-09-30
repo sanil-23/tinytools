@@ -455,3 +455,23 @@ async fn file_write_honours_the_file_state_guard_and_records_its_write() {
     assert_eq!(std::fs::read_to_string(&target).unwrap(), "new");
     assert!(crate::file_state::check_stale_read(&agent, &target).is_none());
 }
+
+#[tokio::test]
+async fn file_write_uses_the_context_workspace_when_one_is_threaded() {
+    use crate::filesystem::test_support::WorkspaceContext;
+    let home = tempfile::tempdir().unwrap();
+    let isolated = tempfile::tempdir().unwrap();
+    let tool = FileWriteTool::new(test_security(home.path().to_path_buf()));
+    let context = WorkspaceContext::at(isolated.path());
+    let result = tool
+        .execute_with_context(
+            json!({"path": "in_ws.txt", "content": "hi"}),
+            ToolCallOptions::default(),
+            Some(&context),
+        )
+        .await
+        .unwrap();
+    assert!(!result.is_error, "{}", result.output());
+    assert!(isolated.path().join("in_ws.txt").exists());
+    assert!(!home.path().join("in_ws.txt").exists());
+}

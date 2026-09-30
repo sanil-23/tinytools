@@ -179,3 +179,109 @@ async fn edit_reports_an_os_write_failure_rather_than_a_silent_success() {
 
     let _ = tokio::fs::remove_dir_all(&dir).await;
 }
+
+// ── Coverage of the budget, symlink, size, read and guard branches ──────
+
+use crate::filesystem::test_support::{RacyGate, WorkspaceContext};
+
+fn edit_args(path: &str) -> serde_json::Value {
+    json!({"path": path, "old_string": "aaa", "new_string": "bbb"})
+}
+
+#[tokio::test]
+async fn edit_reports_rate_limits() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("f.txt"), "aaa").unwrap();
+
+    let limited = EditFileTool::new(TestGate::with(
+        dir.path().to_path_buf(),
+        AutonomyLevel::Supervised,
+        0,
+    ));
+    let result = limited.execute(edit_args("f.txt")).await.unwrap();
+    assert!(result.output().contains("too many actions in the last hour"));
+
+    let racy = EditFileTool::new(Arc::new(RacyGate(test_security(dir.path().to_path_buf()))));
+    let result = racy.execute(edit_args("f.txt")).await.unwrap();
+    assert!(result.output().contains("action budget exhausted"));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn edit_refuses_to_edit_through_a_symlink() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("real.txt"), "aaa").unwrap();
+    std::os::unix::fs::symlink(dir.path().join("real.txt"), dir.path().join("link.txt")).unwrap();
+    let tool = EditFileTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool.execute(edit_args("link.txt")).await.unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("Refusing to edit through symlink"));
+}
+
+#[tokio::test]
+async fn edit_reports_a_missing_file_and_unreadable_contents() {
+    let dir = tempfile::tempdir().unwrap();
+    let tool = EditFileTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool.execute(edit_args("absent.txt")).await.unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("Failed to resolve"));
+
+    std::fs::write(dir.path().join("bin.dat"), [0xff_u8, 0xfe, 0xfd]).unwrap();
+    let result = tool.execute(edit_args("bin.dat")).await.unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("Failed to read file"));
+}
+
+#[tokio::test]
+async fn edit_refuses_an_oversized_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = std::fs::File::create(dir.path().join("big.txt")).unwrap();
+    file.set_len(MAX_FILE_BYTES + 1).unwrap();
+    let tool = EditFileTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool.execute(edit_args("big.txt")).await.unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("File too large"));
+}
+
+#[tokio::test]
+async fn edit_uses_the_context_workspace_when_one_is_threaded() {
+    let home = tempfile::tempdir().unwrap();
+    let isolated = tempfile::tempdir().unwrap();
+    std::fs::write(isolated.path().join("w.txt"), "aaa").unwrap();
+    let tool = EditFileTool::new(test_security(home.path().to_path_buf()));
+    let context = WorkspaceContext::at(isolated.path());
+    let result = tool
+        .execute_with_context(edit_args("w.txt"), ToolCallOptions::default(), Some(&context))
+        .await
+        .unwrap();
+    assert!(!result.is_error, "{}", result.output());
+    assert_eq!(std::fs::read_to_string(isolated.path().join("w.txt")).unwrap(), "bbb");
+}
+
+#[tokio::test]
+async fn edit_honours_the_file_state_guard_and_records_its_write() {
+    crate::file_state::init_global(true);
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().canonicalize().unwrap().join("g.txt");
+    std::fs::write(&target, "aaa").unwrap();
+    let tool = EditFileTool::new(test_security(dir.path().to_path_buf()));
+    let agent = format!("ed-agent-{}", dir.path().display());
+    let other = format!("ed-other-{}", dir.path().display());
+    let run = |agent: String| {
+        crate::file_state::with_file_state_agent_id(agent, tool.execute(edit_args("g.txt")))
+    };
+
+    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), true);
+    let result = run(agent.clone()).await.unwrap();
+    assert!(result.output().contains("Partial read"));
+
+    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), false);
+    crate::file_state::record_write(&other, target.clone());
+    let result = run(agent.clone()).await.unwrap();
+    assert!(result.output().contains("Stale read"));
+
+    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), false);
+    let result = run(agent.clone()).await.unwrap();
+    assert!(!result.is_error, "{}", result.output());
+    assert!(crate::file_state::check_stale_read(&agent, &target).is_none());
+}
