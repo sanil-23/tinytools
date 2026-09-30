@@ -212,7 +212,10 @@ async fn dns_check_skips_resolution_for_a_public_ip_literal() {
 #[tokio::test]
 async fn system_resolver_accepts_a_numeric_loopback_without_network_access() {
     let addresses = resolve_host_ips("127.0.0.1".to_string(), 80).await.unwrap();
-    assert_eq!(addresses, vec!["127.0.0.1".parse().unwrap()]);
+    assert_eq!(
+        addresses,
+        vec!["127.0.0.1".parse::<std::net::IpAddr>().unwrap()]
+    );
 }
 
 #[tokio::test]
