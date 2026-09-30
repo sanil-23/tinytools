@@ -377,3 +377,81 @@ async fn file_write_refuses_an_oversized_content_write() {
 
     let _ = tokio::fs::remove_dir_all(&dir).await;
 }
+
+// ── Coverage of the guard, symlink and budget branches ──────────────────
+
+use crate::filesystem::test_support::RacyGate;
+
+#[tokio::test]
+async fn file_write_refuses_a_racing_budget() {
+    let dir = tempfile::tempdir().unwrap();
+    let tool = FileWriteTool::new(Arc::new(RacyGate(test_security(dir.path().to_path_buf()))));
+    let result = tool
+        .execute(json!({"path": "a.txt", "content": "x"}))
+        .await
+        .unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("action budget exhausted"));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn file_write_refuses_to_write_through_an_in_workspace_symlink() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("real.txt"), "real").unwrap();
+    std::os::unix::fs::symlink(dir.path().join("real.txt"), dir.path().join("link.txt")).unwrap();
+    let tool = FileWriteTool::new(test_security(dir.path().to_path_buf()));
+    let result = tool
+        .execute(json!({"path": "link.txt", "content": "x"}))
+        .await
+        .unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("Refusing to write through symlink"));
+    assert_eq!(std::fs::read_to_string(dir.path().join("real.txt")).unwrap(), "real");
+}
+
+#[tokio::test]
+async fn file_write_honours_the_file_state_guard_and_records_its_write() {
+    crate::file_state::init_global(true);
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().canonicalize().unwrap().join("g.txt");
+    std::fs::write(&target, "old").unwrap();
+    let tool = FileWriteTool::new(test_security(dir.path().to_path_buf()));
+    let agent = format!("fw-agent-{}", dir.path().display());
+    let other = format!("fw-other-{}", dir.path().display());
+
+    // Partial read blocks the overwrite.
+    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), true);
+    let result = crate::file_state::with_file_state_agent_id(
+        agent.clone(),
+        tool.execute(json!({"path": "g.txt", "content": "new"})),
+    )
+    .await
+    .unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("Partial read"));
+
+    // A sibling's later write makes the read stale.
+    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), false);
+    crate::file_state::record_write(&other, target.clone());
+    let result = crate::file_state::with_file_state_agent_id(
+        agent.clone(),
+        tool.execute(json!({"path": "g.txt", "content": "new"})),
+    )
+    .await
+    .unwrap();
+    assert!(result.is_error);
+    assert!(result.output().contains("Stale read"));
+
+    // With a fresh full read the write goes through and is recorded.
+    crate::file_state::record_read(&agent, target.clone(), std::time::SystemTime::now(), false);
+    let result = crate::file_state::with_file_state_agent_id(
+        agent.clone(),
+        tool.execute(json!({"path": "g.txt", "content": "new"})),
+    )
+    .await
+    .unwrap();
+    assert!(!result.is_error, "{}", result.output());
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), "new");
+    assert!(crate::file_state::check_stale_read(&agent, &target).is_none());
+}

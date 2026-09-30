@@ -216,3 +216,142 @@ impl tinytools::ToolRunContext for WorkspaceContext {
         Some(&self.0)
     }
 }
+
+/// A gate whose budget check passes but whose `record_action` refuses, the
+/// interleaving where another call spends the last unit between the two.
+#[derive(Debug)]
+pub struct RacyGate(pub Arc<TestGate>);
+
+#[async_trait]
+impl FsGate for RacyGate {
+    fn can_act(&self) -> bool {
+        self.0.can_act()
+    }
+    fn is_read_only(&self) -> bool {
+        self.0.is_read_only()
+    }
+    fn is_rate_limited(&self) -> bool {
+        false
+    }
+    fn record_action(&self) -> bool {
+        false
+    }
+    fn write_needs_approval(&self) -> bool {
+        self.0.write_needs_approval()
+    }
+    fn action_dir(&self) -> &Path {
+        self.0.action_dir()
+    }
+    fn is_path_string_allowed(&self, path: &str) -> bool {
+        self.0.is_path_string_allowed(path)
+    }
+    async fn validate_path(&self, path: &str) -> Result<PathBuf, String> {
+        self.0.validate_path(path).await
+    }
+    async fn validate_parent_path(&self, path: &str) -> Result<PathBuf, String> {
+        self.0.validate_parent_path(path).await
+    }
+    fn scoped_to_workspace(&self, root: &Path) -> Arc<dyn FsGate> {
+        self.0.scoped_to_workspace(root)
+    }
+}
+
+/// A [`TestGate`] wrapper that can force conditions the plain fake cannot
+/// reach: a budget that reports "not limited" yet refuses to record, a path
+/// resolver pinned to one answer, or an action directory that does not exist.
+#[derive(Debug)]
+pub struct WrapGate {
+    inner: Arc<TestGate>,
+    no_budget: bool,
+    fixed_path: Option<PathBuf>,
+    action_dir: Option<PathBuf>,
+}
+
+impl WrapGate {
+    /// Wrap `inner` without overriding anything yet.
+    pub fn new(inner: Arc<TestGate>) -> Self {
+        Self {
+            inner,
+            no_budget: false,
+            fixed_path: None,
+            action_dir: None,
+        }
+    }
+
+    /// `is_rate_limited` stays `false` but `record_action` returns `false`.
+    #[must_use]
+    pub fn no_budget(mut self) -> Self {
+        self.no_budget = true;
+        self
+    }
+
+    /// Both validators answer `Ok(path)` regardless of input.
+    #[must_use]
+    pub fn fixed_path(mut self, path: PathBuf) -> Self {
+        self.fixed_path = Some(path);
+        self
+    }
+
+    /// Report `dir` as the action directory.
+    #[must_use]
+    pub fn action_dir_override(mut self, dir: PathBuf) -> Self {
+        self.action_dir = Some(dir);
+        self
+    }
+
+    /// Erase into the trait object the tools take.
+    pub fn arc(self) -> Arc<dyn FsGate> {
+        Arc::new(self)
+    }
+}
+
+#[async_trait]
+impl FsGate for WrapGate {
+    fn can_act(&self) -> bool {
+        self.inner.can_act()
+    }
+
+    fn is_read_only(&self) -> bool {
+        self.inner.is_read_only()
+    }
+
+    fn is_rate_limited(&self) -> bool {
+        !self.no_budget && self.inner.is_rate_limited()
+    }
+
+    fn record_action(&self) -> bool {
+        !self.no_budget && self.inner.record_action()
+    }
+
+    fn write_needs_approval(&self) -> bool {
+        self.inner.write_needs_approval()
+    }
+
+    fn action_dir(&self) -> &Path {
+        self.action_dir
+            .as_deref()
+            .unwrap_or_else(|| self.inner.action_dir())
+    }
+
+    fn is_path_string_allowed(&self, path: &str) -> bool {
+        self.inner.is_path_string_allowed(path)
+    }
+
+    async fn validate_path(&self, path: &str) -> Result<PathBuf, String> {
+        match &self.fixed_path {
+            Some(fixed) => Ok(fixed.clone()),
+            None => self.inner.validate_path(path).await,
+        }
+    }
+
+    async fn validate_parent_path(&self, path: &str) -> Result<PathBuf, String> {
+        match &self.fixed_path {
+            Some(fixed) => Ok(fixed.clone()),
+            None => self.inner.validate_parent_path(path).await,
+        }
+    }
+
+    fn scoped_to_workspace(&self, root: &Path) -> Arc<dyn FsGate> {
+        self.inner.scoped_to_workspace(root)
+    }
+}
