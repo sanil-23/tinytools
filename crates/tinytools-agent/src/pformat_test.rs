@@ -312,3 +312,43 @@ fn signature_round_trips_with_parser() {
     assert_eq!(args["location"], json!("Berlin"));
     assert_eq!(args["unit"], json!("imperial"));
 }
+
+fn echo_schema() -> serde_json::Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "value": { "type": "string" },
+            "count": { "type": "integer" }
+        }
+    })
+}
+
+#[test]
+fn build_registry_keys_on_the_tools_own_names() {
+    let reg = build_registry([("echo", echo_schema()), ("shell", echo_schema())]);
+    assert!(reg.contains_key("echo"));
+    assert!(reg.contains_key("shell"));
+    assert_eq!(reg.len(), 2);
+}
+
+#[test]
+fn a_tool_absent_from_the_registry_cannot_be_called_by_guessing_its_name() {
+    // The parser must not invent argument names for a tool it does not know,
+    // or a model could tunnel arbitrary JSON through by guessing a name.
+    let reg = build_registry([("echo", echo_schema())]);
+    assert!(parse_call("shell[rm -rf /]", &reg).is_none());
+}
+
+#[test]
+fn a_built_registry_parses_positionally_with_schema_ordered_slots() {
+    let reg = build_registry([("echo", echo_schema())]);
+    let (name, args) = parse_call("echo[0|3|1|hi]", &reg).expect("known tool parses");
+    assert_eq!(name, "echo");
+    // Schema properties are ordered alphabetically: count, value.
+    assert_eq!(args["count"], 3);
+    assert_eq!(args["value"], "hi");
+    assert_eq!(
+        render_signature_from_schema("echo", &echo_schema()),
+        "echo[0|<count>|1|<value>]"
+    );
+}

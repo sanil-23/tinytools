@@ -58,6 +58,10 @@ is sufficient, whether a timeout applies, whether an external effect needs
 approval — it belongs to the host, whose threat model and configuration the
 decision depends on.
 
+`crates/tinytools-std` holds host-independent tool building blocks (cross-agent
+file staleness tracking, SSRF-safe URL validation, PATH probing). It is not part of the dependency-light vocabulary crate and may pull
+in `tokio`, `parking_lot` and `log`.
+
 Add a crate by creating `crates/<name>/` — `members = ["crates/*"]` picks it up
 by existing. Inherit `version`, `edition`, `rust-version`, `license`, and
 `repository` from `[workspace.package]`, take shared dependencies from

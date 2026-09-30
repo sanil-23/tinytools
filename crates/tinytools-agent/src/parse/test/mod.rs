@@ -8,6 +8,7 @@ mod function_call;
 mod glm;
 mod harmony_mistral;
 mod invoke_xml;
+mod regressions;
 mod sentinel;
 mod tagged;
 
