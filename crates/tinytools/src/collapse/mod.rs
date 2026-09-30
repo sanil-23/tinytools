@@ -229,7 +229,12 @@ fn rewrite_local_refs(value: &mut Value, action: &str) {
                 && let Some(name) = decode_pointer_token(token)
             {
                 let namespaced = namespace_definition(action, &name);
-                *reference = format!("#/$defs/{}{}", encode_pointer_token(&namespaced), suffix);
+                let suffix = if suffix.is_empty() {
+                    String::new()
+                } else {
+                    format!("/{suffix}")
+                };
+                *reference = format!("#/$defs/{}{suffix}", encode_pointer_token(&namespaced));
             }
             for key in [
                 "$defs",
