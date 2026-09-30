@@ -456,16 +456,18 @@ fn member_definitions_are_preserved_and_namespaced() {
             tool: &second,
         },
     ]);
+    let first_definition = namespace_definition("first", "Options");
+    let second_definition = namespace_definition("second", "Options");
     assert_eq!(
         merged["properties"]["options"]["anyOf"][0]["$ref"],
-        "#/$defs/first_Options"
+        format!("#/$defs/{first_definition}")
     );
     assert_eq!(
         merged["properties"]["options"]["anyOf"][1]["$ref"],
-        "#/$defs/second_Options"
+        format!("#/$defs/{second_definition}")
     );
-    assert_eq!(merged["$defs"]["first_Options"]["type"], "string");
-    assert_eq!(merged["$defs"]["second_Options"]["type"], "integer");
+    assert_eq!(merged["$defs"][first_definition]["type"], "string");
+    assert_eq!(merged["$defs"][second_definition]["type"], "integer");
 }
 
 #[test]
