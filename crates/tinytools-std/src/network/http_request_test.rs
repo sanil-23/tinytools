@@ -449,3 +449,98 @@ async fn a_hook_failure_is_returned_as_the_error_without_a_retry() {
     assert_eq!(err, "x402 payment failed: no wallet");
     assert_eq!(seen.lock().unwrap().len(), 1);
 }
+
+#[tokio::test]
+async fn a_body_is_sent_and_a_success_response_is_formatted_with_redacted_cookies() {
+    let ok = "HTTP/1.1 200 OK\r\nSet-Cookie: session=abc\r\nX-Other: 1\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello";
+    let (addr, seen) = serve(vec![ok.to_string()]).await;
+    let tool = test_tool(vec![]);
+    let response = tool
+        .execute_request(
+            &format!("http://{addr}/post"),
+            reqwest::Method::POST,
+            vec![],
+            Some("payload"),
+        )
+        .await
+        .unwrap();
+    let result = tool.format_response(response).await.unwrap();
+    assert!(!result.is_error);
+    let text = result.text();
+    assert!(text.contains("hello"), "{text}");
+    assert!(text.contains("set-cookie: ***REDACTED***"), "{text}");
+    assert!(!text.contains("session=abc"), "{text}");
+    assert!(seen.lock().unwrap()[0].ends_with("payload"));
+}
+
+#[tokio::test]
+async fn a_non_success_response_is_reported_as_an_error() {
+    let (addr, _) = serve(vec![
+        "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            .to_string(),
+    ])
+    .await;
+    let tool = test_tool(vec![]);
+    let response = tool
+        .execute_request(
+            &format!("http://{addr}/"),
+            reqwest::Method::GET,
+            vec![],
+            None,
+        )
+        .await
+        .unwrap();
+    let result = tool.format_response(response).await.unwrap();
+    assert!(result.is_error);
+    assert!(result.text().contains("HTTP 500"));
+}
+
+#[tokio::test]
+async fn an_unreadable_body_is_reported_inline() {
+    // Promise more bytes than are sent, then close: reading the body fails.
+    let (addr, _) = serve(vec![
+        "HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\nshort".to_string(),
+    ])
+    .await;
+    let tool = test_tool(vec![]);
+    let response = tool
+        .execute_request(
+            &format!("http://{addr}/"),
+            reqwest::Method::GET,
+            vec![],
+            None,
+        )
+        .await
+        .unwrap();
+    let result = tool.format_response(response).await.unwrap();
+    assert!(result.text().contains("Failed to read response body"));
+}
+
+#[tokio::test]
+async fn a_missing_url_is_an_error() {
+    let tool = test_tool(vec![]);
+    let err = tool.execute(json!({})).await.unwrap_err();
+    assert!(err.to_string().contains("Missing 'url'"));
+}
+
+#[test]
+fn a_payment_hook_can_be_installed_and_attempts_debug_without_headers() {
+    let hook: Arc<dyn PaymentHook> = Arc::new(RecordingHook {
+        settled: Arc::default(),
+        fail: false,
+    });
+    let tool = test_tool(vec![]).with_payment_hook(hook);
+    assert!(tool.payment.is_some());
+    let attempt = PaymentAttempt {
+        headers: vec![("PAYMENT-SIGNATURE".into(), "secret".into())],
+        settle: Box::new(|_| {}),
+    };
+    let shown = format!("{attempt:?}");
+    assert!(shown.contains("PaymentAttempt") && !shown.contains("secret"));
+}
+
+#[test]
+fn the_test_gate_builds_a_client_with_the_requested_timeouts() {
+    let gate = TestNetGate::supervised();
+    let _client = gate.timeout_client("svc", 5, 2);
+}
