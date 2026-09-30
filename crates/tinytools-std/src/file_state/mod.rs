@@ -7,6 +7,10 @@
 //! tools can detect the conflict and return a model-facing error
 //! requiring the agent to re-read.
 //!
+//! A read tool captures `Instant::now()` *before* it opens the file and hands
+//! that stamp to [`record_read`] afterwards, so a sibling write racing the
+//! read's I/O is ordered after the read and still reported stale.
+//!
 //! The guard is opt-in for the process: the host calls [`init_global`] with
 //! `enabled` (typically derived from its own configuration or environment).
 //! Until it does, or when it passes `false`, every operation is a no-op.
