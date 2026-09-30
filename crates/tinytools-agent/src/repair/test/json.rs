@@ -166,3 +166,32 @@ fn truly_unrecoverable_input_is_none() {
         "an open string cannot be guessed"
     );
 }
+
+#[test]
+fn strip_trailing_commas_keeps_layout_and_multibyte_text_intact() {
+    // Whitespace after the dropped comma survives, so indentation is preserved.
+    assert_eq!(
+        strip_trailing_commas("{ \"a\": 1, \"b\": [1, 2,\n] ,\n}"),
+        "{ \"a\": 1, \"b\": [1, 2\n] \n}"
+    );
+    // Input with nothing to strip comes back byte-for-byte, including
+    // non-ASCII text inside and outside strings.
+    let src = "{\"name\": \"café 日本 🦀\", \"tags\": [\"é\", \"ü\"]}";
+    assert_eq!(strip_trailing_commas(src), src);
+    // A comma inside a string is data, and non-ASCII neighbours do not
+    // disturb the one that is stripped.
+    assert_eq!(
+        strip_trailing_commas("{\"a\": \"é,}\", \"b\": \"日本\",}"),
+        "{\"a\": \"é,}\", \"b\": \"日本\"}"
+    );
+}
+
+#[test]
+fn strip_trailing_commas_handles_nested_arrays_and_objects_and_string_commas() {
+    assert_eq!(
+        strip_trailing_commas("{ \"a\": 1, \"b\": [1, 2,], }"),
+        "{ \"a\": 1, \"b\": [1, 2] }"
+    );
+    let src = "{ \"reason\": \"a, b, c,\" }";
+    assert_eq!(strip_trailing_commas(src), src);
+}

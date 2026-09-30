@@ -34,6 +34,7 @@ fn tools() -> Vec<(&'static str, Box<dyn Tool>)> {
         ),
         ("glob_search", Box::new(GlobTool::new(gate.clone()))),
         ("grep", Box::new(GrepTool::new(gate.clone()))),
+        ("image_info", Box::new(ImageInfoTool::new(gate.clone()))),
         ("list_files", Box::new(ListFilesTool::new(gate))),
         ("read_diff", Box::new(ReadDiffTool::new(workspace.clone()))),
         (
@@ -43,7 +44,11 @@ fn tools() -> Vec<(&'static str, Box<dyn Tool>)> {
         ("run_tests", Box::new(RunTestsTool::new(workspace.clone()))),
         (
             "update_memory_md",
-            Box::new(UpdateMemoryMdTool::new(workspace)),
+            Box::new(UpdateMemoryMdTool::new(workspace.clone())),
+        ),
+        (
+            "read_workspace_state",
+            Box::new(WorkspaceStateTool::new(workspace)),
         ),
     ]
 }
@@ -68,11 +73,13 @@ fn fixture(name: &str) -> Value {
         "git_operations" => include_str!("fixtures/git_operations.json"),
         "glob_search" => include_str!("fixtures/glob_search.json"),
         "grep" => include_str!("fixtures/grep.json"),
+        "image_info" => include_str!("fixtures/image_info.json"),
         "list_files" => include_str!("fixtures/list_files.json"),
         "read_diff" => include_str!("fixtures/read_diff.json"),
         "run_linter" => include_str!("fixtures/run_linter.json"),
         "run_tests" => include_str!("fixtures/run_tests.json"),
         "update_memory_md" => include_str!("fixtures/update_memory_md.json"),
+        "read_workspace_state" => include_str!("fixtures/read_workspace_state.json"),
         other => panic!("no fixture for {other}"),
     };
     serde_json::from_str(raw).expect("fixture is valid JSON")
