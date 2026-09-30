@@ -210,3 +210,43 @@ fn an_unknown_action_names_the_valid_ones() {
         "missing required field `action` (expected add)"
     );
 }
+
+#[test]
+fn resolves_actions_and_formats_debug_without_exposing_the_tool() {
+    let a = stub("a", json!({}), PermissionLevel::Dangerous, false);
+    let actions = [CollapsedAction {
+        action: "add",
+        tool: &a,
+    }];
+    assert!(resolve(&actions, "add").is_some());
+    assert!(resolve(&actions, "missing").is_none());
+    assert!(format!("{:?}", actions[0]).contains("tool: \"a\""));
+    assert_eq!(strictest_permission(&actions), PermissionLevel::Dangerous);
+}
+
+#[test]
+fn schema_merge_skips_missing_properties_and_non_object_property_specs() {
+    let absent = stub("absent", json!({}), PermissionLevel::None, false);
+    let malformed = stub(
+        "malformed",
+        json!({"properties": {"ignored": null}}),
+        PermissionLevel::None,
+        false,
+    );
+    let actions = [
+        CollapsedAction {
+            action: "absent",
+            tool: &absent,
+        },
+        CollapsedAction {
+            action: "malformed",
+            tool: &malformed,
+        },
+    ];
+    assert_eq!(
+        merge_action_schemas(&actions)["properties"]["ignored"],
+        Value::Null
+    );
+    assert_eq!(strictest_permission(&[]), PermissionLevel::None);
+    assert_eq!(args_without_action(&json!([1, 2])), json!([1, 2]));
+}

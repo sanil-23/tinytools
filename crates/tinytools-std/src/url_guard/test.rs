@@ -159,6 +159,29 @@ fn normalize_empty_input_stays_empty_for_open_mode() {
     assert!(normalize_allowed_domains(vec![]).is_empty());
 }
 
+#[test]
+fn normalization_discards_invalid_domains_and_strips_ports() {
+    assert_eq!(
+        normalize_domain("https://.Example.com.:8443/path").as_deref(),
+        Some("example.com")
+    );
+    assert_eq!(normalize_domain("   "), None);
+    assert_eq!(normalize_domain("bad domain"), None);
+    assert_eq!(normalize_domain("http://"), None);
+}
+
+#[test]
+fn host_and_port_parsing_reject_malformed_authorities() {
+    assert!(extract_host("https:///path").is_err());
+    assert!(extract_host("https://:80/path").is_err());
+    assert_eq!(extract_port("http://example.com").unwrap(), 80);
+    assert_eq!(extract_port("https://example.com").unwrap(), 443);
+    assert_eq!(extract_port("https://example.com:8443/path").unwrap(), 8443);
+    assert!(extract_port("https://example.com:nope").is_err());
+    assert!(extract_port("https://example.com:65536").is_err());
+    assert!(extract_port("https://[::1]:443").is_err());
+}
+
 #[tokio::test]
 async fn dns_check_with_empty_allowlist_allows_public_resolved_host() {
     // Open mode (empty allowlist) must still pass DNS check for public IPs.
@@ -174,6 +197,16 @@ async fn dns_check_with_empty_allowlist_allows_public_resolved_host() {
     .await
     .unwrap();
     assert_eq!(got, "https://example.com");
+}
+
+#[tokio::test]
+async fn dns_check_skips_resolution_for_a_public_ip_literal() {
+    let got = validate_url_with_dns_check_with_resolver("https://8.8.8.8", &[], |_, _| async {
+        panic!("IP literals should not be resolved")
+    })
+    .await
+    .unwrap();
+    assert_eq!(got, "https://8.8.8.8");
 }
 
 #[tokio::test]
