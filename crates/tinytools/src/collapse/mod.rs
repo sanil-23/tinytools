@@ -118,29 +118,28 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
 
     for entry in actions {
         let schema = entry.tool.parameters_schema();
-        let Some(props) = schema.get("properties").and_then(Value::as_object) else {
-            continue;
-        };
-        for (name, spec) in props {
-            if name == ACTION_KEY {
-                continue;
-            }
-            owners.entry(name.clone()).or_default().push(entry.action);
-            let known = definitions.entry(name.clone()).or_default();
-            let mut property = spec.clone();
-            rewrite_local_refs(&mut property, entry.action);
-            if !known
-                .iter()
-                .any(|existing| same_definition(existing, &property))
-            {
-                known.push(property);
+        if let Some(props) = schema.get("properties").and_then(Value::as_object) {
+            for (name, spec) in props {
+                if name == ACTION_KEY {
+                    continue;
+                }
+                owners.entry(name.clone()).or_default().push(entry.action);
+                let known = definitions.entry(name.clone()).or_default();
+                let mut property = spec.clone();
+                rewrite_local_refs(&mut property, entry.action);
+                if !known
+                    .iter()
+                    .any(|existing| same_definition(existing, &property))
+                {
+                    known.push(property);
+                }
             }
         }
         if let Some(defs) = schema.get("$defs").and_then(Value::as_object) {
             for (name, definition) in defs {
                 let mut definition = definition.clone();
                 rewrite_local_refs(&mut definition, entry.action);
-                merged_defs.insert(format!("{}_{}", entry.action, name), definition);
+                merged_defs.insert(namespace_definition(entry.action, name), definition);
             }
         }
     }
@@ -215,23 +214,61 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
 
 /// Namespace member-local JSON Schema definitions so merged properties keep
 /// resolving their references without collisions between actions.
+fn namespace_definition(action: &str, name: &str) -> String {
+    format!("a{}_{}d{}_{}", action.len(), action, name.len(), name)
+}
+
+/// Rewrite references only where JSON Schema expects a subschema. Values
+/// inside `const`, `enum`, `default`, and `examples` are instance data.
 fn rewrite_local_refs(value: &mut Value, action: &str) {
     match value {
         Value::Object(object) => {
             if let Some(Value::String(reference)) = object.get_mut("$ref")
                 && let Some(name) = reference.strip_prefix("#/$defs/")
             {
-                *reference = format!("#/$defs/{action}_{name}");
+                *reference = format!("#/$defs/{}", namespace_definition(action, name));
             }
-            for child in object.values_mut() {
-                rewrite_local_refs(child, action);
+            for key in [
+                "$defs",
+                "definitions",
+                "properties",
+                "patternProperties",
+                "dependentSchemas",
+            ] {
+                if let Some(Value::Object(schemas)) = object.get_mut(key) {
+                    for schema in schemas.values_mut() {
+                        rewrite_local_refs(schema, action);
+                    }
+                }
+            }
+            for key in [
+                "additionalProperties",
+                "unevaluatedProperties",
+                "propertyNames",
+                "items",
+                "contains",
+                "not",
+                "if",
+                "then",
+                "else",
+                "unevaluatedItems",
+                "contentSchema",
+            ] {
+                if let Some(schema) = object.get_mut(key) {
+                    rewrite_local_refs(schema, action);
+                }
+            }
+            for key in ["allOf", "anyOf", "oneOf"] {
+                if let Some(Value::Array(schemas)) = object.get_mut(key) {
+                    for schema in schemas {
+                        rewrite_local_refs(schema, action);
+                    }
+                }
             }
         }
-        Value::Array(values) => {
-            for child in values {
-                rewrite_local_refs(child, action);
-            }
-        }
+        Value::Array(values) => values
+            .iter_mut()
+            .for_each(|schema| rewrite_local_refs(schema, action)),
         _ => {}
     }
 }

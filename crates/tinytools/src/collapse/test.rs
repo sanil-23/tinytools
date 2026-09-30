@@ -469,6 +469,63 @@ fn member_definitions_are_preserved_and_namespaced() {
 }
 
 #[test]
+fn member_definition_namespaces_cannot_collide() {
+    let read_file = stub(
+        "read_file",
+        json!({"properties":{"first":{"$ref":"#/$defs/Options"}}, "$defs":{"Options":{"type":"string"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let read = stub(
+        "read",
+        json!({"properties":{"second":{"$ref":"#/$defs/file_Options"}}, "$defs":{"file_Options":{"type":"integer"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let merged = merge_action_schemas(&[
+        CollapsedAction {
+            action: "read_file",
+            tool: &read_file,
+        },
+        CollapsedAction {
+            action: "read",
+            tool: &read,
+        },
+    ]);
+    let first_name = namespace_definition("read_file", "Options");
+    let second_name = namespace_definition("read", "file_Options");
+    assert_ne!(first_name, second_name);
+    assert_eq!(
+        merged["properties"]["first"]["$ref"],
+        format!("#/$defs/{first_name}")
+    );
+    assert_eq!(
+        merged["properties"]["second"]["$ref"],
+        format!("#/$defs/{second_name}")
+    );
+    assert_eq!(merged["$defs"][first_name]["type"], "string");
+    assert_eq!(merged["$defs"][second_name]["type"], "integer");
+}
+
+#[test]
+fn local_ref_like_instance_data_is_not_rewritten() {
+    let edit = stub(
+        "edit",
+        json!({"properties":{"value":{"const":{"$ref":"#/$defs/Options"}}}, "$defs":{"Options":{"type":"string"}}}),
+        PermissionLevel::ReadOnly,
+        false,
+    );
+    let merged = merge_action_schemas(&[CollapsedAction {
+        action: "edit",
+        tool: &edit,
+    }]);
+    assert_eq!(
+        merged["properties"]["value"]["const"]["$ref"],
+        "#/$defs/Options"
+    );
+}
+
+#[test]
 fn validation_accepts_a_well_formed_family() {
     let a = stub("a", json!({}), PermissionLevel::ReadOnly, false);
     let b = stub("b", json!({}), PermissionLevel::Write, false);
