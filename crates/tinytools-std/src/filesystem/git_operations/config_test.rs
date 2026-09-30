@@ -9,6 +9,8 @@
 //! still resolves `GitOperationsTool` the way it did before the split, and so
 //! the fixtures in the sibling test module stay reachable.
 
+#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+
 use super::config::{
     NEUTRALISED_CONFIG, SHELL_NEUTRALISED_CONFIG, normalise_config_key, shell_git_env,
 };

@@ -1,5 +1,7 @@
 //! Behavior tests for the `run_tests` tool.
 
+#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+
 use super::*;
 use crate::filesystem::test_support::WorkspaceContext;
 use serde_json::json;

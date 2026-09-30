@@ -1,5 +1,7 @@
 //! Behavior tests for the `git_operations` tool, driven through a fake [`FsGate`].
 
+#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+
 use super::config::NULL_CONFIG_PATH;
 use super::*;
 use crate::filesystem::test_support::{AutonomyLevel, TestGate, WorkspaceContext};

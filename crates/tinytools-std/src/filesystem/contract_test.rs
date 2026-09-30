@@ -6,6 +6,8 @@
 //! than re-derived from the code under test. A change here is a change to the
 //! tool's public contract and must be made on purpose.
 
+#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+
 use std::sync::Arc;
 
 use serde_json::{Value, json};

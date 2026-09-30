@@ -1,5 +1,7 @@
 //! Behavior tests for the `file_write` tool, driven through a fake [`FsGate`].
 
+#![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+
 use super::*;
 use crate::filesystem::test_support::{AutonomyLevel, TestGate};
 
