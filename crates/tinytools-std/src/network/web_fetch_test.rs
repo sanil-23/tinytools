@@ -6,12 +6,12 @@ fn test_security() -> Arc<TestNetGate> {
 }
 
 fn fetch(gate: Arc<TestNetGate>, allowed: Vec<String>, max: Option<usize>, timeout: Option<u64>) -> WebFetchTool {
-    fetch(gate, allowed, max, timeout, DEFAULT_LIMITS, Arc::new(TestHtml))
+    WebFetchTool::new(gate, allowed, max, timeout, DEFAULT_LIMITS, Arc::new(TestHtml))
 }
 
 #[test]
 fn web_fetch_name_and_schema() {
-    let tool = WebFetchTool::new(test_security(), vec!["example.com".into()], None, None);
+    let tool = fetch(test_security(), vec!["example.com".into()], None, None);
     assert_eq!(tool.name(), "web_fetch");
     let schema = tool.parameters_schema();
     assert!(schema["properties"]["url"].is_object());

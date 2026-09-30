@@ -14,7 +14,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tinytools::{PermissionLevel, Tool, ToolResult};
-use tinytools_std::url_guard::{normalize_allowed_domains, validate_url_with_dns_check};
+use crate::url_guard::{normalize_allowed_domains, validate_url_with_dns_check};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
