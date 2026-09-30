@@ -94,6 +94,19 @@ static NAMED_INVOKE_OPEN_RE: LazyLock<Option<Regex>> = LazyLock::new(|| {
     .ok()
 });
 
+/// The malformed name-parameter spelling emitted after JSON arguments by
+/// `DeepSeek` when its DSML stream leaks into a text `<tool_call>` block.
+static DSML_NAME_PARAMETER_RE: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?is)^\s*(?:</[|｜]{1,2}\s*DSML\s*[|｜]{1,2}\s*parameter\s*>\s*)*<[|｜]{1,2}\s*DSML\s*[|｜]{1,2}\s*parameter\s+name\s*=\s*"name"\s*:\s*"([^"]+)"[^>]*(?:>|})"#,
+    )
+    .ok()
+});
+
+/// `DeepSeek`'s group terminator, used to leave following assistant prose intact.
+static DSML_CALLS_CLOSE_RE: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r"(?is)</[|｜]{1,2}\s*DSML\s*[|｜]{1,2}\s*calls\s*>").ok());
+
 /// First match of `re` in `haystack`, as `(start, end)`.
 fn find_re(re: &LazyLock<Option<Regex>>, haystack: &str) -> Option<(usize, usize)> {
     re.as_ref()
@@ -340,6 +353,14 @@ impl Tagged {
             })
             .or_else(|| extract_first_json_value_with_end(after));
         if let Some((value, consumed)) = recovered {
+            let (dsml_calls, dsml_end) = recover_dsml_calls(after);
+            if !dsml_calls.is_empty() {
+                return Probe::Found(Block {
+                    start: opener.start,
+                    end: body_start + dsml_end,
+                    decoded: Decoded::Calls(dsml_calls),
+                });
+            }
             let calls = read_calls(
                 &value,
                 AliasPolicy::Marked,
@@ -380,6 +401,51 @@ impl Tagged {
             decoded: Decoded::Verbatim,
         })
     }
+}
+
+/// Recovers JSON argument objects followed by `DeepSeek`'s name parameter.
+/// JSON boundaries are found before scanning markup, so tag-like text inside
+/// string arguments cannot be mistaken for DSML framing.
+fn recover_dsml_calls(after: &str) -> (Vec<ParsedToolCall>, usize) {
+    let Some(re) = DSML_NAME_PARAMETER_RE.as_ref() else {
+        return (Vec::new(), 0);
+    };
+    let mut calls = Vec::new();
+    let mut cursor = 0;
+    while cursor < after.len() {
+        let Some((arguments, json_end)) = extract_first_json_value_with_end(&after[cursor..])
+        else {
+            break;
+        };
+        let json_end = cursor + json_end;
+        let metadata = &after[json_end..];
+        let inline_name = arguments.get("name").and_then(serde_json::Value::as_str);
+        let name_match = re.captures(metadata);
+        let name = inline_name.or_else(|| {
+            name_match
+                .as_ref()
+                .and_then(|m| m.get(1).map(|v| v.as_str()))
+        });
+        let Some(name) = name.map(str::trim) else {
+            break;
+        };
+        if name.is_empty() {
+            break;
+        }
+        let name = name.to_owned();
+        let args = arguments.get("arguments").cloned().unwrap_or(arguments);
+        calls.push(ParsedToolCall::new(name, args, CallSource::TaggedJson));
+        cursor = json_end
+            + name_match
+                .and_then(|m| m.get(0).map(|v| v.end()))
+                .unwrap_or(0);
+    }
+    let end = if calls.is_empty() {
+        0
+    } else {
+        find_re(&DSML_CALLS_CLOSE_RE, &after[cursor..]).map_or(cursor, |(_, end)| cursor + end)
+    };
+    (calls, end)
 }
 
 /// Whether a tag-family marker is a closer (`</tool_call>`, `<|/tool_call|>`).
