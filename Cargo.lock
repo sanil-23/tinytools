@@ -255,7 +255,7 @@ dependencies = [
 
 [[package]]
 name = "tinytools"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -266,7 +266,7 @@ dependencies = [
 
 [[package]]
 name = "tinytools-agent"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "regex",
  "serde",
@@ -277,7 +277,7 @@ dependencies = [
 
 [[package]]
 name = "tinytools-jev"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "tinytools",
@@ -287,7 +287,7 @@ dependencies = [
 
 [[package]]
 name = "tinytools-std"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
