@@ -124,24 +124,11 @@ fn paths_written_by_collects_correctly() {
     let coord = fresh_coordinator();
     let p1 = PathBuf::from("/tmp/test/f1.txt");
     let p2 = PathBuf::from("/tmp/test/f2.txt");
-    coord.writes.write().insert(
-        p1.clone(),
-        WriteStamp {
-            writer: "child-1".to_string(),
-            timestamp: Instant::now(),
-        },
-    );
-    coord.writes.write().insert(
-        p2.clone(),
-        WriteStamp {
-            writer: "child-2".to_string(),
-            timestamp: Instant::now(),
-        },
-    );
+    coord.record_write("child-1", p1.clone());
+    coord.record_write("child-2", p2);
     let result = coord.paths_written_by(&["child-1".to_string()]);
     assert_eq!(result.len(), 1);
-    assert!(result.contains_key("child-1"));
-    assert_eq!(result["child-1"], vec![p1]);
+    assert_eq!(result.get("child-1"), Some(&vec![p1]));
 }
 
 #[tokio::test]
@@ -197,14 +184,12 @@ async fn global_api_tracks_reads_writes_and_locks() {
 
 #[test]
 fn paths_written_by_keeps_a_path_after_another_agent_overwrites_it() {
-    use crate::file_state::{init_global, record_write, try_global};
-
-    init_global(true);
-    let coord = try_global().expect("coordinator enabled");
+    let coord = fresh_coordinator();
     let path = PathBuf::from("/tmp/test/history-shared.txt");
-    record_write("history-child-1", path.clone());
-    record_write("history-child-2", path.clone());
+    coord.record_write("child-1", path.clone());
+    coord.record_write("child-2", path.clone());
 
-    let result = coord.paths_written_by(&["history-child-1".to_string()]);
-    assert_eq!(result.get("history-child-1"), Some(&vec![path]));
+    let result = coord.paths_written_by(&["child-1".to_string(), "child-2".to_string()]);
+    assert_eq!(result.get("child-1"), Some(&vec![path.clone()]));
+    assert_eq!(result.get("child-2"), Some(&vec![path]));
 }

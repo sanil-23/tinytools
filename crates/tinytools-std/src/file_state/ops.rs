@@ -55,29 +55,41 @@ pub fn record_read(agent_id: &str, resolved_path: PathBuf, mtime: SystemTime, pa
 /// Record that `agent_id` wrote `resolved_path`.
 pub fn record_write(agent_id: &str, resolved_path: PathBuf) {
     let Some(coord) = try_global() else { return };
-    tracing::trace!(
-        agent = agent_id,
-        path = %resolved_path.display(),
-        "[file_state] record_write"
-    );
-    let now = Instant::now();
-    coord.writes.write().insert(
-        resolved_path.clone(),
-        WriteStamp {
-            writer: agent_id.to_string(),
-            timestamp: now,
-        },
-    );
-    // Also update this agent's own read stamp so its own subsequent
-    // writes don't trigger self-staleness.
-    coord.reads.write().insert(
-        (agent_id.to_string(), resolved_path),
-        ReadStamp {
-            mtime: SystemTime::now(),
-            timestamp: now,
-            partial: false,
-        },
-    );
+    coord.record_write(agent_id, resolved_path);
+}
+
+impl FileStateCoordinator {
+    /// Record a write on this coordinator; [`record_write`] delegates here.
+    pub(crate) fn record_write(&self, agent_id: &str, resolved_path: PathBuf) {
+        tracing::trace!(
+            agent = agent_id,
+            path = %resolved_path.display(),
+            "[file_state] record_write"
+        );
+        let now = Instant::now();
+        self.writes.write().insert(
+            resolved_path.clone(),
+            WriteStamp {
+                writer: agent_id.to_string(),
+                timestamp: now,
+            },
+        );
+        self.written_paths
+            .write()
+            .entry(agent_id.to_string())
+            .or_default()
+            .insert(resolved_path.clone());
+        // Also update this agent's own read stamp so its own subsequent
+        // writes don't trigger self-staleness.
+        self.reads.write().insert(
+            (agent_id.to_string(), resolved_path),
+            ReadStamp {
+                mtime: SystemTime::now(),
+                timestamp: now,
+                partial: false,
+            },
+        );
+    }
 }
 
 // ── Staleness checks ─────────────────────────────────────────────────────
