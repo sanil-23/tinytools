@@ -6,7 +6,8 @@
 //!
 //! - [`file_state`] — cross-agent read/write stamps and per-path locks, so a
 //!   sibling agent's edit is noticed before a stale overwrite.
-//! - [`url_guard`] — URL validation with SSRF and DNS-rebinding checks.
+//! - [`url_guard`] — URL validation with SSRF checks, plus DNS resolution
+//!   that returns the vetted addresses for the caller to pin its connection to.
 //! - [`detect_tools`] — `PATH` probing and the read-only `detect_tools` tool.
 
 pub mod detect_tools;

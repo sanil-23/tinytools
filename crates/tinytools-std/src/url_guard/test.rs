@@ -173,7 +173,7 @@ async fn dns_check_with_empty_allowlist_allows_public_resolved_host() {
     )
     .await
     .unwrap();
-    assert_eq!(got, "https://example.com");
+    assert_eq!(got.url, "https://example.com");
 }
 
 #[tokio::test]
@@ -445,7 +445,7 @@ async fn dns_check_passes_for_public_resolved_ip() {
     )
     .await
     .unwrap();
-    assert_eq!(got, "https://example.com");
+    assert_eq!(got.url, "https://example.com");
 }
 
 #[tokio::test]
@@ -475,7 +475,7 @@ async fn dns_check_uses_explicit_port_for_resolution() {
     )
     .await
     .unwrap();
-    assert_eq!(got, "http://api.example.com:8080/status");
+    assert_eq!(got.url, "http://api.example.com:8080/status");
 }
 
 #[tokio::test]
@@ -639,4 +639,41 @@ fn extract_host_and_port_reject_percent_encoded_authority() {
 fn validate_allows_percent_encoding_outside_the_authority() {
     let got = validate_url("https://example.com/search?q=a%20b#x%2F", &[]).unwrap();
     assert_eq!(got, "https://example.com/search?q=a%20b#x%2F");
+}
+
+#[tokio::test]
+async fn dns_check_returns_exactly_the_vetted_addresses() {
+    let got = validate_url_with_dns_check_with_resolver(
+        "https://API.example.com:8443/v1",
+        &[],
+        |_, _| async {
+            Ok(vec![
+                "93.184.216.34".parse()?,
+                "2606:4700:4700::1111".parse()?,
+            ])
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        got,
+        ValidatedUrl {
+            url: "https://API.example.com:8443/v1".to_string(),
+            host: "api.example.com".to_string(),
+            addrs: vec![
+                "93.184.216.34:8443".parse().unwrap(),
+                "[2606:4700:4700::1111]:8443".parse().unwrap(),
+            ],
+        }
+    );
+}
+
+#[tokio::test]
+async fn dns_check_pins_an_ip_literal_host_to_itself() {
+    // IP literals skip DNS entirely, so this stays network-free.
+    let got = validate_url_with_dns_check("http://93.184.216.34/page", &[])
+        .await
+        .unwrap();
+    assert_eq!(got.host, "93.184.216.34");
+    assert_eq!(got.addrs, vec!["93.184.216.34:80".parse().unwrap()]);
 }
