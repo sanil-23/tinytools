@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+
 use super::*;
 use crate::filesystem::test_support::{AutonomyLevel, TestGate};
 

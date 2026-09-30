@@ -380,9 +380,7 @@ impl Tool for HttpRequestTool {
         // everything that rides with it (body + custom headers) before the
         // round-trip.
         {
-            let has_headers = headers_val
-                .as_object()
-                .is_some_and(|h| !h.is_empty());
+            let has_headers = headers_val.as_object().is_some_and(|h| !h.is_empty());
             self.gate
                 .disclose(&host_of(&url), body.is_some(), has_headers);
         }

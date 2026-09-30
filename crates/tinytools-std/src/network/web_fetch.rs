@@ -178,7 +178,10 @@ impl Tool for WebFetchTool {
             .get("max_bytes")
             .and_then(serde_json::Value::as_u64)
             .map_or(self.max_bytes, |n| (n as usize).max(1));
-        let raw_requested = args.get("raw").and_then(serde_json::Value::as_bool).unwrap_or(false);
+        let raw_requested = args
+            .get("raw")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
 
         if self.gate.is_rate_limited() {
             return Ok(ToolResult::error(
@@ -245,13 +248,14 @@ impl Tool for WebFetchTool {
         };
 
         if let Some(loc) = &location
-            && status.is_redirection() {
-                return Ok(ToolResult::success(format!(
-                    "status={} url={} location={loc}\n[redirect not followed — re-call web_fetch with the location URL if it's an allowed domain]",
-                    status.as_u16(),
-                    final_url
-                )));
-            }
+            && status.is_redirection()
+        {
+            return Ok(ToolResult::success(format!(
+                "status={} url={} location={loc}\n[redirect not followed — re-call web_fetch with the location URL if it's an allowed domain]",
+                status.as_u16(),
+                final_url
+            )));
+        }
 
         let downloaded = body.len();
         let (body, byte_capped) = if downloaded > max_bytes {

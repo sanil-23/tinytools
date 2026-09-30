@@ -105,11 +105,7 @@ impl Tool for WorkspaceStateTool {
                     while let Ok(Some(entry)) = entries.next_entry().await {
                         let name = entry.file_name().to_string_lossy().to_string();
                         if !name.starts_with('.') {
-                            let suffix = if entry
-                                .file_type()
-                                .await
-                                .is_ok_and(|ft| ft.is_dir())
-                            {
+                            let suffix = if entry.file_type().await.is_ok_and(|ft| ft.is_dir()) {
                                 "/"
                             } else {
                                 ""

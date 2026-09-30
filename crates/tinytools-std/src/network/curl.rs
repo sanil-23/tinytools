@@ -65,8 +65,7 @@ impl CurlTool {
 
         for component in p.components() {
             match component {
-                Component::Normal(_) => {}
-                Component::CurDir => {}
+                Component::Normal(_) | Component::CurDir => {}
                 Component::ParentDir => {
                     anyhow::bail!("dest_path may not contain '..'");
                 }
@@ -217,9 +216,7 @@ impl Tool for CurlTool {
         // downloads.
         {
             let host = host_of(&url);
-            let has_headers = headers_val
-                .as_object()
-                .is_some_and(|h| !h.is_empty());
+            let has_headers = headers_val.as_object().is_some_and(|h| !h.is_empty());
             self.gate.disclose(&host, false, has_headers);
         }
 
@@ -236,12 +233,13 @@ impl Tool for CurlTool {
         };
 
         if let Some(parent) = dest_path.parent()
-            && let Err(e) = fs::create_dir_all(parent).await {
-                tracing::error!(target: "[curl]", url = %url, dest = %dest_path.display(), reason = %e, "create_dir_all failed");
-                return Ok(ToolResult::error(format!(
-                    "Failed to create destination directory: {e}"
-                )));
-            }
+            && let Err(e) = fs::create_dir_all(parent).await
+        {
+            tracing::error!(target: "[curl]", url = %url, dest = %dest_path.display(), reason = %e, "create_dir_all failed");
+            return Ok(ToolResult::error(format!(
+                "Failed to create destination directory: {e}"
+            )));
+        }
 
         let builder = reqwest::Client::builder()
             .timeout(Duration::from_secs(self.timeout_secs))
@@ -387,10 +385,9 @@ fn sanitize_dest_subdir(raw: &str) -> String {
     let p = Path::new(trimmed);
     let mut buf = PathBuf::new();
     for component in p.components() {
-        match component {
-            Component::Normal(c) => buf.push(c),
-            // Drop everything else: absolute roots, prefixes, parent dirs, cur dirs.
-            _ => continue,
+        // Drop everything else: absolute roots, prefixes, parent dirs, cur dirs.
+        if let Component::Normal(c) = component {
+            buf.push(c);
         }
     }
     if buf.as_os_str().is_empty() {
