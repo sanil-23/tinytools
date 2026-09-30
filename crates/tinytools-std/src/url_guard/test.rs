@@ -585,3 +585,58 @@ fn exported_ssrf_predicates_classify_non_global_ips_accurately() {
     assert!(!is_private_or_local_host("github.com"));
     assert!(!is_private_or_local_host("api.openai.com"));
 }
+
+// ── WHATWG parser differentials ─────────────────────────────
+
+#[test]
+fn validate_rejects_backslash_authority_smuggling() {
+    // A WHATWG parser treats `\` as `/` for http(s), so a real client
+    // connects to 127.0.0.1 while a naive split sees `*.example.com`.
+    let allow = vec!["example.com".to_string()];
+    let smuggled = "http://127.0.0.1\\.example.com/";
+    let err = validate_url(smuggled, &allow).unwrap_err().to_string();
+    assert!(err.contains("backslash"), "got: {err}");
+    let err = validate_url(smuggled, &[]).unwrap_err().to_string();
+    assert!(err.contains("backslash"), "got: {err}");
+}
+
+#[test]
+fn validate_rejects_backslash_anywhere() {
+    let err = validate_url("https://example.com/a\\b", &[])
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("backslash"), "got: {err}");
+}
+
+#[test]
+fn extract_host_and_port_reject_backslash() {
+    let smuggled = "http://127.0.0.1\\.example.com:8080/";
+    assert!(extract_host(smuggled).is_err());
+    assert!(extract_port(smuggled).is_err());
+}
+
+#[test]
+fn validate_rejects_percent_encoded_host() {
+    // WHATWG percent-decodes the host, so this is 127.0.0.1 on the wire.
+    let err = validate_url("http://%31%32%37.0.0.1/", &[])
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("percent-encoded"), "got: {err}");
+    let allow = vec!["example.com".to_string()];
+    let err = validate_url("http://evil%2eexample.com/", &allow)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("percent-encoded"), "got: {err}");
+}
+
+#[test]
+fn extract_host_and_port_reject_percent_encoded_authority() {
+    assert!(extract_host("http://%31%32%37.0.0.1/").is_err());
+    assert!(extract_port("http://example.com:%38%30/").is_err());
+}
+
+#[test]
+fn validate_allows_percent_encoding_outside_the_authority() {
+    let got = validate_url("https://example.com/search?q=a%20b#x%2F", &[]).unwrap();
+    assert_eq!(got, "https://example.com/search?q=a%20b#x%2F");
+}
