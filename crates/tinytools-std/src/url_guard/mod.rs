@@ -97,7 +97,7 @@ pub fn validate_url(raw_url: &str, allowed_domains: &[String]) -> anyhow::Result
 ///
 /// Callers should use this function instead of `validate_url` in all
 /// paths that make outbound HTTP requests.
-pub(crate) async fn validate_url_with_dns_check(
+pub async fn validate_url_with_dns_check(
     raw_url: &str,
     allowed_domains: &[String],
 ) -> anyhow::Result<String> {
@@ -362,5 +362,4 @@ pub fn is_non_global_v6(v6: std::net::Ipv6Addr) -> bool {
 }
 
 #[cfg(test)]
-#[path = "url_guard_tests.rs"]
-mod tests;
+mod test;

@@ -14,8 +14,7 @@
 //!      (command / dependency not found) or a `126` (permission denied — often a
 //!      sandbox restriction) from a generic `1`, so it could not recognise an
 //!      un-retryable wall and re-ran the identical command. The harness
-//!      repeated-failure circuit breaker (`RepeatedToolFailureMiddleware`, see
-//!      `crates/openhuman-core/src/agent/tinyagents/middleware.rs`) still bounds that loop, but
+//!      repeated-failure circuit breaker still bounds that loop, but
 //!      only after a few wasted iterations and with a generic halt message,
 //!      because the root-cause signal had already been thrown away.
 //!
@@ -50,7 +49,7 @@ fn exit_code_hint(code: i32) -> &'static str {
 /// Render a finished command's exit status + captured streams into the text the
 /// model sees on FAILURE. Never drops a non-empty stream; always states the exit
 /// code (or that the process was terminated by a signal).
-pub(crate) fn render_command_failure(exit_code: Option<i32>, stdout: &str, stderr: &str) -> String {
+pub fn render_command_failure(exit_code: Option<i32>, stdout: &str, stderr: &str) -> String {
     let mut out = match exit_code {
         Some(code) => format!("Command failed (exit code {code}{})", exit_code_hint(code)),
         None => "Command failed (terminated by a signal — no exit code)".to_string(),
@@ -74,7 +73,7 @@ pub(crate) fn render_command_failure(exit_code: Option<i32>, stdout: &str, stder
 /// A `ToolResult::error` carrying [`render_command_failure`]. The single failure
 /// constructor shared by every shell-family tool, on both the native and the
 /// sandboxed execution path, so the surfaced shape can't drift between them.
-pub(crate) fn command_failure(exit_code: Option<i32>, stdout: &str, stderr: &str) -> ToolResult {
+pub fn command_failure(exit_code: Option<i32>, stdout: &str, stderr: &str) -> ToolResult {
     ToolResult::error(render_command_failure(exit_code, stdout, stderr))
 }
 
@@ -83,7 +82,7 @@ pub(crate) fn command_failure(exit_code: Option<i32>, stdout: &str, stderr: &str
 /// "terminated / no real exit code" (see `sandbox::types::SandboxExecResult`);
 /// map any negative value to `None` so it renders as a signal termination rather
 /// than the literal `exit code -1`.
-pub(crate) fn sandbox_exit_code(code: i32) -> Option<i32> {
+pub fn sandbox_exit_code(code: i32) -> Option<i32> {
     if code < 0 {
         None
     } else {
@@ -92,5 +91,4 @@ pub(crate) fn sandbox_exit_code(code: i32) -> Option<i32> {
 }
 
 #[cfg(test)]
-#[path = "command_output_tests.rs"]
-mod tests;
+mod test;

@@ -32,7 +32,7 @@ impl Default for DetectToolsTool {
 
 /// Locate `name` on `$PATH`, honoring `PATHEXT` on Windows. Returns the first
 /// matching executable path, or `None` if not found.
-pub(crate) fn find_on_path(name: &str) -> Option<PathBuf> {
+pub fn find_on_path(name: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     let exts: Vec<String> = if cfg!(windows) {
         std::env::var("PATHEXT")
@@ -145,5 +145,4 @@ impl Tool for DetectToolsTool {
 }
 
 #[cfg(test)]
-#[path = "detect_tools_tests.rs"]
-mod tests;
+mod test;

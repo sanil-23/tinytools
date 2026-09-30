@@ -1,5 +1,5 @@
 use crate::file_state::{FileStateCoordinator, ReadStamp};
-use crate::file_state::types_for_test::WriteStamp;
+use crate::file_state::types::WriteStamp;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
