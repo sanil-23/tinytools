@@ -81,6 +81,33 @@ fn unclosed_tag_with_balanced_json_still_recovers() {
 }
 
 #[test]
+fn unclosed_tag_recovers_dsml_parameter_calls() {
+    let response = concat!(
+        "<tool_call>\n",
+        r#"{"arguments":{"path":"work/extract.py","content":"t = re.sub(r'<script.*?</script>', ' ', t, flags=re.S)"}}"#,
+        "</｜DSML｜ parameter>\n",
+        "<｜DSML｜ parameter name=\"name\":\"file_write\"}</｜DSML｜ parameter>\n",
+        "</｜DSML｜ invoke>\n",
+        "<｜DSML｜ invoke>\n",
+        r#"{"arguments":{"command":"ls work"}}"#,
+        "</｜DSML｜ parameter>\n",
+        "<｜DSML｜ parameter name=\"name\":\"shell\"}</｜DSML｜ parameter>\n",
+        "</｜DSML｜ invoke>\n",
+        "</｜DSML｜ calls>Done.",
+    );
+    let (text, calls) = parse(response);
+    assert_eq!(text, "Done.");
+    assert_eq!(calls.len(), 2);
+    assert_eq!(calls[0].name, "file_write");
+    assert_eq!(
+        calls[0].arguments["content"],
+        "t = re.sub(r'<script.*?</script>', ' ', t, flags=re.S)"
+    );
+    assert_eq!(calls[1].name, "shell");
+    assert_eq!(calls[1].arguments["command"], "ls work");
+}
+
+#[test]
 fn unclosed_tag_recovery_preserves_unrelated_markup_after_the_json() {
     // No tag-family marker exists anywhere after this opener, so a `</div>`
     // right after the recovered JSON is narrative, not a stray tool-call
@@ -632,12 +659,8 @@ fn a_bare_dsml_invoke_carries_its_name_in_the_body() {
 /// A block that decodes to nothing must not bury the calls after it.
 ///
 /// Verbatim from a `deepseek` turn: an unterminated `<tool_call>` whose body is
-/// `{"arguments":{…}}` with no name — genuinely unrecoverable, since the name
-/// survived only in a corrupted `<｜DSML｜ parameter name="name":"file_write"}`
-/// line and inventing one is never right — followed by a complete
-/// `<｜DSML｜ invoke>`. The failed block used to run to end-of-text and take
-/// the good call with it, so the whole response parsed as prose and both calls
-/// were lost.
+/// `{"arguments":{…}}` with a name in a corrupted DSML parameter line,
+/// followed by a complete `<｜DSML｜ invoke>`. Both calls should survive.
 #[test]
 fn an_undecodable_block_does_not_swallow_the_call_after_it() {
     let raw = concat!(
@@ -656,11 +679,12 @@ fn an_undecodable_block_does_not_swallow_the_call_after_it() {
     let outcome = super::parse_known(raw, &["file_write", "shell"]);
     assert_eq!(
         outcome.calls.len(),
-        1,
-        "the well-formed call survives its malformed neighbour: {:?}",
+        2,
+        "both calls survive their mixed framing: {:?}",
         outcome.calls
     );
-    assert_eq!(outcome.calls[0].name, "shell");
+    assert_eq!(outcome.calls[0].name, "file_write");
+    assert_eq!(outcome.calls[1].name, "shell");
 
     // Reduced to the essential shape, so a future change that reintroduces the
     // swallow fails here with less noise.
@@ -715,6 +739,30 @@ fn recovery_leaves_a_named_invoke_after_a_complete_malformed_body() {
     let outcome = super::parse_known(raw, &["shell"]);
     assert_eq!(outcome.calls.len(), 1, "{:?}", outcome.calls);
     assert_eq!(outcome.calls[0].name, "shell");
+}
+
+#[test]
+fn unclosed_inline_name_does_not_scan_later_json_from_narrative() {
+    let raw = concat!(
+        "<tool_call>{\"name\":\"first\",\"arguments\":{}} prose ",
+        "{\"name\":\"shell\",\"arguments\":{\"command\":\"ls\"}}"
+    );
+    let (text, calls) = parse(raw);
+    assert_eq!(calls.len(), 1, "{calls:?}");
+    assert_eq!(calls[0].name, "first");
+    assert!(text.contains("prose"));
+}
+
+#[test]
+fn unclosed_inline_name_decodes_stringified_and_aliased_arguments() {
+    for raw in [
+        r#"<tool_call>{"name":"echo","arguments":"{\"value\":\"x\"}"}"#,
+        r#"<tool_call>{"name":"echo","args":{"value":"x"}}"#,
+    ] {
+        let (_, calls) = parse(raw);
+        assert_eq!(calls.len(), 1, "{calls:?}");
+        assert_eq!(calls[0].arguments, serde_json::json!({"value": "x"}));
+    }
 }
 
 #[test]
