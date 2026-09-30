@@ -210,6 +210,12 @@ async fn dns_check_skips_resolution_for_a_public_ip_literal() {
 }
 
 #[tokio::test]
+async fn system_resolver_accepts_a_numeric_loopback_without_network_access() {
+    let addresses = resolve_host_ips("127.0.0.1".to_string(), 80).await.unwrap();
+    assert_eq!(addresses, vec!["127.0.0.1".parse().unwrap()]);
+}
+
+#[tokio::test]
 async fn dns_check_with_empty_allowlist_blocks_private_resolved_ip() {
     // Even in open mode, DNS rebinding to a private IP must be blocked.
     let err = validate_url_with_dns_check_with_resolver("https://example.com", &[], |_, _| async {
