@@ -105,11 +105,11 @@ impl WebFetchTool {
 
 #[async_trait]
 impl Tool for WebFetchTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "web_fetch"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "GET a URL and read the page. HTML returns as Markdown (links kept, \
          scripts dropped); `raw: true` for the body as sent. For POST or \
          custom headers use `http_request`."
@@ -176,10 +176,9 @@ impl Tool for WebFetchTool {
             .ok_or_else(|| anyhow::anyhow!("Missing 'url' parameter"))?;
         let max_bytes = args
             .get("max_bytes")
-            .and_then(|v| v.as_u64())
-            .map(|n| (n as usize).max(1))
-            .unwrap_or(self.max_bytes);
-        let raw_requested = args.get("raw").and_then(|v| v.as_bool()).unwrap_or(false);
+            .and_then(serde_json::Value::as_u64)
+            .map_or(self.max_bytes, |n| (n as usize).max(1));
+        let raw_requested = args.get("raw").and_then(serde_json::Value::as_bool).unwrap_or(false);
 
         if self.gate.is_rate_limited() {
             return Ok(ToolResult::error(
@@ -245,15 +244,14 @@ impl Tool for WebFetchTool {
             Err(e) => return Ok(ToolResult::error(format!("Failed to read body: {e}"))),
         };
 
-        if let Some(loc) = &location {
-            if status.is_redirection() {
+        if let Some(loc) = &location
+            && status.is_redirection() {
                 return Ok(ToolResult::success(format!(
                     "status={} url={} location={loc}\n[redirect not followed — re-call web_fetch with the location URL if it's an allowed domain]",
                     status.as_u16(),
                     final_url
                 )));
             }
-        }
 
         let downloaded = body.len();
         let (body, byte_capped) = if downloaded > max_bytes {

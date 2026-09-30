@@ -167,7 +167,7 @@ async fn an_ordinary_repository_still_reports_status_and_log() {
 /// The first draft of the allowlist refused any repository carrying an
 /// ordinary setting like `core.autocrlf`, which is most of them on Windows
 /// and many elsewhere — the tool would have reported nothing useful for a
-/// large class of real workspaces. Raised by CodeRabbit on the PR.
+/// large class of real workspaces. Raised by `CodeRabbit` on the PR.
 #[cfg(unix)]
 #[tokio::test]
 async fn an_inert_setting_an_ordinary_repository_carries_is_allowed() {
@@ -210,7 +210,7 @@ async fn an_lfs_clone_is_refused_because_its_filter_names_a_program() {
 }
 
 /// `credential.helper` reads like a preference and is command-valued: a
-/// value beginning `!` is run as a shell command. CodeRabbit's review
+/// value beginning `!` is run as a shell command. `CodeRabbit`'s review
 /// listed it among the inert keys to allow; it is not one, and allowlisting
 /// it would have reopened the hole this PR closes.
 #[cfg(unix)]

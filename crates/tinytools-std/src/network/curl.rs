@@ -95,8 +95,8 @@ impl CurlTool {
     }
 
     fn default_filename_from_url(url: &str) -> String {
-        let after_scheme = url.split_once("://").map(|(_, rest)| rest).unwrap_or(url);
-        let path_part = after_scheme.split_once('/').map(|(_, p)| p).unwrap_or("");
+        let after_scheme = url.split_once("://").map_or(url, |(_, rest)| rest);
+        let path_part = after_scheme.split_once('/').map_or("", |(_, p)| p);
         let last = path_part
             .split('?')
             .next()
@@ -122,11 +122,11 @@ impl Tool for CurlTool {
         tinytools::ToolExposure::Deferred
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "curl"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Download a file from an http(s) URL into the workspace. The body is streamed to disk \
         with a hard byte ceiling. Same allowlist as `http_request`. Returns the saved path, \
         bytes written, content-type, and SHA-256 of the file."
@@ -219,8 +219,7 @@ impl Tool for CurlTool {
             let host = host_of(&url);
             let has_headers = headers_val
                 .as_object()
-                .map(|h| !h.is_empty())
-                .unwrap_or(false);
+                .is_some_and(|h| !h.is_empty());
             self.gate.disclose(&host, false, has_headers);
         }
 
@@ -236,14 +235,13 @@ impl Tool for CurlTool {
             }
         };
 
-        if let Some(parent) = dest_path.parent() {
-            if let Err(e) = fs::create_dir_all(parent).await {
+        if let Some(parent) = dest_path.parent()
+            && let Err(e) = fs::create_dir_all(parent).await {
                 tracing::error!(target: "[curl]", url = %url, dest = %dest_path.display(), reason = %e, "create_dir_all failed");
                 return Ok(ToolResult::error(format!(
                     "Failed to create destination directory: {e}"
                 )));
             }
-        }
 
         let builder = reqwest::Client::builder()
             .timeout(Duration::from_secs(self.timeout_secs))

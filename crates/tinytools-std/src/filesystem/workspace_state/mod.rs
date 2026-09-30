@@ -1,4 +1,4 @@
-//! Tool: read_workspace_state — read-only workspace overview for Orchestrator/Planner.
+//! Tool: `read_workspace_state` — read-only workspace overview for Orchestrator/Planner.
 
 use super::git_operations::config::{
     disallowed_config_refusal, first_disallowed_repo_config_key, hardened_git,
@@ -16,6 +16,7 @@ pub struct WorkspaceStateTool {
 
 impl WorkspaceStateTool {
     /// A `read_workspace_state` tool reporting on `workspace_dir`.
+    #[must_use]
     pub fn new(workspace_dir: PathBuf) -> Self {
         Self { workspace_dir }
     }
@@ -23,11 +24,11 @@ impl WorkspaceStateTool {
 
 #[async_trait]
 impl Tool for WorkspaceStateTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "read_workspace_state"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Get a read-only overview of the workspace: git status (modified/untracked files), \
          recent commits, and top-level directory structure. Useful for understanding the \
          current project state before planning tasks."
@@ -58,11 +59,11 @@ impl Tool for WorkspaceStateTool {
     async fn execute(&self, args: serde_json::Value) -> anyhow::Result<ToolResult> {
         let include_tree = args
             .get("include_tree")
-            .and_then(|v| v.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(true);
         let recent_commits = args
             .get("recent_commits")
-            .and_then(|v| v.as_u64())
+            .and_then(serde_json::Value::as_u64)
             .unwrap_or(5) as usize;
 
         tracing::debug!(
@@ -107,8 +108,7 @@ impl Tool for WorkspaceStateTool {
                             let suffix = if entry
                                 .file_type()
                                 .await
-                                .map(|ft| ft.is_dir())
-                                .unwrap_or(false)
+                                .is_ok_and(|ft| ft.is_dir())
                             {
                                 "/"
                             } else {

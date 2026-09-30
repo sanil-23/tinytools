@@ -121,11 +121,11 @@ impl ImageInfoTool {
 
 #[async_trait]
 impl Tool for ImageInfoTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "image_info"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Read image file metadata (format, dimensions, size) and optionally return base64-encoded data."
     }
 

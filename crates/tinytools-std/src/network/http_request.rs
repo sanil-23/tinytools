@@ -271,7 +271,7 @@ impl HttpRequestTool {
         if status.is_success() {
             Ok(ToolResult::success(output))
         } else {
-            Ok(ToolResult::error(format!("HTTP {}", status_code)))
+            Ok(ToolResult::error(format!("HTTP {status_code}")))
         }
     }
 
@@ -291,11 +291,11 @@ impl HttpRequestTool {
 
 #[async_trait]
 impl Tool for HttpRequestTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "http_request"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Make HTTP requests to external APIs. Supports GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS methods. \
         Security constraints: allowlist-only domains, no local/private hosts, configurable timeout and response size limits."
     }
@@ -382,8 +382,7 @@ impl Tool for HttpRequestTool {
         {
             let has_headers = headers_val
                 .as_object()
-                .map(|h| !h.is_empty())
-                .unwrap_or(false);
+                .is_some_and(|h| !h.is_empty());
             self.gate
                 .disclose(&host_of(&url), body.is_some(), has_headers);
         }

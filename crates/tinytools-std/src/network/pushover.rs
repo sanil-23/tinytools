@@ -58,7 +58,7 @@ impl PushoverTool {
             if line.starts_with('#') || line.is_empty() {
                 continue;
             }
-            let line = line.strip_prefix("export ").map(str::trim).unwrap_or(line);
+            let line = line.strip_prefix("export ").map_or(line, str::trim);
             if let Some((key, value)) = line.split_once('=') {
                 let key = key.trim();
                 let value = Self::parse_env_value(value);
@@ -81,11 +81,11 @@ impl PushoverTool {
 
 #[async_trait]
 impl Tool for PushoverTool {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "pushover"
     }
 
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Send a Pushover notification to your device. Requires PUSHOVER_TOKEN and PUSHOVER_USER_KEY in .env file."
     }
 
@@ -151,7 +151,7 @@ impl Tool for PushoverTool {
 
         let title = args.get("title").and_then(|v| v.as_str()).map(String::from);
 
-        let priority = match args.get("priority").and_then(|v| v.as_i64()) {
+        let priority = match args.get("priority").and_then(serde_json::Value::as_i64) {
             Some(value) if (-2..=2).contains(&value) => Some(value),
             Some(value) => {
                 return Ok(ToolResult::error(format!(
@@ -192,19 +192,17 @@ impl Tool for PushoverTool {
 
         if !status.is_success() {
             return Ok(ToolResult::error(format!(
-                "Pushover API returned status {}",
-                status
+                "Pushover API returned status {status}"
             )));
         }
 
         let api_status = serde_json::from_str::<serde_json::Value>(&body)
             .ok()
-            .and_then(|json| json.get("status").and_then(|value| value.as_i64()));
+            .and_then(|json| json.get("status").and_then(serde_json::Value::as_i64));
 
         if api_status == Some(1) {
             Ok(ToolResult::success(format!(
-                "Pushover notification sent successfully. Response: {}",
-                body
+                "Pushover notification sent successfully. Response: {body}"
             )))
         } else {
             Ok(ToolResult::error(
