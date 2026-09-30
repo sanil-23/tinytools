@@ -20,7 +20,7 @@ parking_lot = "0.12"
 # Safe effective-credential executable checks for Unix PATH candidates.
 rustix = { version = "1", default-features = false, features = ["fs"] }
 serde_json = { workspace = true }
-tinytools = { path = "../tinytools", version = "0.4.1" }
+tinytools = { path = "../tinytools", version = "0.5.0" }
 # `spawn_blocking` keeps synchronous system DNS resolution off async executor threads.
 tokio = { version = "1", default-features = false, features = ["rt", "sync"] }
 tracing = { workspace = true }

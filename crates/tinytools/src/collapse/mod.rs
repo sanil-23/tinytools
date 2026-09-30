@@ -110,7 +110,7 @@ pub fn validate_actions(actions: &[CollapsedAction<'_>]) -> Result<(), CollapseE
 #[must_use]
 pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
     // Every distinct definition of each property, in first-seen order.
-    let mut definitions: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+    let mut definitions: BTreeMap<String, Vec<(Vec<&str>, Value)>> = BTreeMap::new();
     let mut merged_defs = Map::new();
     // Track which actions mentioned each property so a shared field reads as
     // shared rather than as belonging to whichever action happened to be first.
@@ -127,11 +127,13 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
                 let known = definitions.entry(name.clone()).or_default();
                 let mut property = spec.clone();
                 rewrite_local_refs(&mut property, entry.action);
-                if !known
-                    .iter()
-                    .any(|existing| same_definition(existing, &property))
+                if let Some((owners, _)) = known
+                    .iter_mut()
+                    .find(|(_, existing)| same_definition(existing, &property))
                 {
-                    known.push(property);
+                    owners.push(entry.action);
+                } else {
+                    known.push((vec![entry.action], property));
                 }
             }
         }
@@ -148,9 +150,29 @@ pub fn merge_action_schemas(actions: &[CollapsedAction<'_>]) -> Value {
         .into_iter()
         .map(|(name, mut specs)| {
             let spec = if specs.len() == 1 {
-                specs.remove(0)
+                specs.remove(0).1
             } else {
-                json!({ "anyOf": specs })
+                let alternatives = specs
+                    .into_iter()
+                    .map(|(owners, mut spec)| {
+                        if let Some(object) = spec.as_object_mut() {
+                            let prefix = owners.join("/");
+                            let existing = object
+                                .get("description")
+                                .and_then(Value::as_str)
+                                .unwrap_or_default()
+                                .to_string();
+                            let description = if existing.is_empty() {
+                                prefix
+                            } else {
+                                format!("{prefix}: {existing}")
+                            };
+                            object.insert("description".to_string(), Value::String(description));
+                        }
+                        spec
+                    })
+                    .collect::<Vec<_>>();
+                json!({ "anyOf": alternatives })
             };
             (name, spec)
         })

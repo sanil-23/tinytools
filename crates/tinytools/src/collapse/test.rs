@@ -377,13 +377,13 @@ fn conflicting_definitions_of_a_shared_property_are_all_kept() {
     let merged = merge_action_schemas(&forward);
     let alternatives = merged["properties"]["id"]["anyOf"].as_array().unwrap();
     assert_eq!(alternatives.len(), 2);
-    assert!(alternatives.contains(&json!({"type": "string"})));
-    assert!(alternatives.contains(&json!({"type": "integer", "minimum": 1})));
+    assert!(alternatives.contains(&json!({"type": "string", "description": "a"})));
+    assert!(alternatives.contains(&json!({"type": "integer", "minimum": 1, "description": "b"})));
     // Neither member's constraints depend on which came first.
     let reordered = merge_action_schemas(&reversed);
     let reordered_alternatives = reordered["properties"]["id"]["anyOf"].as_array().unwrap();
     assert_eq!(reordered_alternatives.len(), 2);
-    assert!(reordered_alternatives.contains(&json!({"type": "string"})));
+    assert!(reordered_alternatives.contains(&json!({"type": "string", "description": "a"})));
 }
 
 #[test]
