@@ -455,6 +455,15 @@ pub fn is_non_global_v4(v4: std::net::Ipv4Addr) -> bool {
 /// Whether an IPv6 address is non-global (loopback, ULA, link-local, mapped, ...).
 pub fn is_non_global_v6(v6: std::net::Ipv6Addr) -> bool {
     let segs = v6.segments();
+    let well_known_nat64_v4 =
+        (segs[0] == 0x0064 && segs[1] == 0xff9b && segs[2] == 0 && segs[3] == 0).then(|| {
+            std::net::Ipv4Addr::new(
+                (segs[6] >> 8) as u8,
+                segs[6] as u8,
+                (segs[7] >> 8) as u8,
+                segs[7] as u8,
+            )
+        });
     v6.is_loopback()
         || v6.is_unspecified()
         || v6.is_multicast()
@@ -466,7 +475,7 @@ pub fn is_non_global_v6(v6: std::net::Ipv6Addr) -> bool {
         // Local-use translation (RFC 8215) and the well-known NAT64 prefix
         // can embed addresses that translate to private IPv4 destinations.
         || (segs[0] == 0x0064 && segs[1] == 0xff9b && segs[2] == 1)
-        || (segs[0] == 0x0064 && segs[1] == 0xff9b && segs[2] == 0 && segs[3] == 0)
+        || well_known_nat64_v4.is_some_and(is_non_global_v4)
         || (segs[0] & 0xfff0) == 0x3ff0
         || segs[0] == 0x5f00
         || v6.to_ipv4_mapped().is_some_and(is_non_global_v4)
