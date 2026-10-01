@@ -307,11 +307,12 @@ fn a_write_before_the_read_is_not_stale() {
         Instant::now(),
     );
 
-    assert!(coord.stale_reads_for_parent("parent").is_empty());
-    assert!(
+    assert_eq!(coord.stale_reads_for_parent("parent").len(), 0);
+    assert_eq!(
         coord
             .parent_stale_files("parent", &["child-1".to_string()])
-            .is_empty()
+            .len(),
+        0
     );
     assert_eq!(coord.check_stale_read("parent", &path), None);
 }
