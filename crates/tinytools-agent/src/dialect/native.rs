@@ -192,12 +192,14 @@ impl ToolDialect for NativeDialect {
                     reasoning_content,
                     extra_metadata,
                 } => {
-                    vec![DialectMessage::assistant_with_calls(
-                        text.clone().unwrap_or_default(),
-                        tool_calls.clone(),
-                        reasoning_content.clone(),
-                    )
-                    .with_metadata(extra_metadata.clone())]
+                    vec![
+                        DialectMessage::assistant_with_calls(
+                            text.clone().unwrap_or_default(),
+                            tool_calls.clone(),
+                            reasoning_content.clone(),
+                        )
+                        .with_metadata(extra_metadata.clone()),
+                    ]
                 }
                 TranscriptEntry::ToolResults(results) => results
                     .iter()
