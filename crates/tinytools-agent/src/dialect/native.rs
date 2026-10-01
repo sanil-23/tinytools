@@ -181,6 +181,39 @@ impl ToolDialect for NativeDialect {
             .collect()
     }
 
+    fn to_typed_messages(&self, history: &[TranscriptEntry]) -> Vec<DialectMessage> {
+        pair_tool_cycles(history)
+            .into_iter()
+            .flat_map(|entry| match entry {
+                TranscriptEntry::Chat(chat) => vec![chat.clone()],
+                TranscriptEntry::AssistantToolCalls {
+                    text,
+                    tool_calls,
+                    reasoning_content,
+                    extra_metadata,
+                } => {
+                    vec![
+                        DialectMessage::assistant_with_calls(
+                            text.clone().unwrap_or_default(),
+                            tool_calls.clone(),
+                            reasoning_content.clone(),
+                        )
+                        .with_metadata(extra_metadata.clone()),
+                    ]
+                }
+                TranscriptEntry::ToolResults(results) => results
+                    .iter()
+                    .map(|result| {
+                        DialectMessage::tool_result(
+                            result.tool_call_id.clone(),
+                            result.content.clone(),
+                        )
+                    })
+                    .collect(),
+            })
+            .collect()
+    }
+
     fn should_send_tool_specs(&self) -> bool {
         true
     }

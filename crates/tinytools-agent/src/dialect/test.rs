@@ -563,6 +563,86 @@ fn native_replay_carries_reasoning_and_pairs_the_cycle() {
     assert!(messages[2].content.contains("\"tool_call_id\":\"call_1\""));
 }
 
+/// The typed replay is the packed replay with the envelope taken apart: same
+/// pairing, same order, same metadata, structure in fields.
+#[test]
+fn native_typed_replay_matches_the_packed_replay() {
+    let history = vec![
+        TranscriptEntry::Chat(DialectMessage::user("weather?")),
+        TranscriptEntry::AssistantToolCalls {
+            text: Some("checking".to_string()),
+            tool_calls: vec![native_call("call_1", "get_weather", "{}")],
+            reasoning_content: Some("thinking".to_string()),
+            extra_metadata: Some(json!({"reasoning_content": "thinking"})),
+        },
+        TranscriptEntry::ToolResults(vec![ToolResultEntry::new(
+            "call_1".to_string(),
+            "18C".to_string(),
+        )]),
+        TranscriptEntry::Chat(DialectMessage::assistant("sunny")),
+    ];
+
+    let packed = NativeDialect.to_provider_messages(&history);
+    let typed = NativeDialect.to_typed_messages(&history);
+
+    assert_eq!(typed.len(), packed.len());
+    assert_eq!(typed[0], packed[0]);
+    assert_eq!(typed[3], packed[3]);
+    assert_eq!(typed[1].role, DialectRole::Assistant);
+    assert_eq!(typed[1].content, "checking");
+    assert_eq!(
+        typed[1].tool_calls,
+        vec![native_call("call_1", "get_weather", "{}")]
+    );
+    assert_eq!(typed[1].reasoning_content.as_deref(), Some("thinking"));
+    assert_eq!(typed[1].extra_metadata, packed[1].extra_metadata);
+    assert_eq!(typed[2].role, DialectRole::Tool);
+    assert_eq!(typed[2].content, "18C");
+    assert_eq!(typed[2].tool_call_id.as_deref(), Some("call_1"));
+    // Re-packing the typed message gives exactly the packed row.
+    assert_eq!(
+        encode_assistant_envelope(
+            Some(&typed[1].content),
+            &typed[1].tool_calls,
+            typed[1].reasoning_content.as_deref()
+        ),
+        packed[1].content
+    );
+    assert_eq!(
+        encode_tool_envelope(typed[2].tool_call_id.as_deref().unwrap(), &typed[2].content),
+        packed[2].content
+    );
+}
+
+#[test]
+fn native_typed_replay_drops_unpaired_cycles_like_the_packed_replay() {
+    let history = vec![
+        TranscriptEntry::AssistantToolCalls {
+            text: None,
+            tool_calls: vec![native_call("call_1", "a", "{}")],
+            reasoning_content: None,
+            extra_metadata: None,
+        },
+        TranscriptEntry::Chat(DialectMessage::user("still there?")),
+    ];
+    assert_eq!(
+        NativeDialect.to_typed_messages(&history),
+        NativeDialect.to_provider_messages(&history)
+    );
+}
+
+#[test]
+fn text_dialects_keep_the_packed_form_as_their_typed_form() {
+    let history = vec![TranscriptEntry::ToolResults(vec![ToolResultEntry::new(
+        "c".to_string(),
+        "out".to_string(),
+    )])];
+    assert_eq!(
+        XmlDialect.to_typed_messages(&history),
+        XmlDialect.to_provider_messages(&history)
+    );
+}
+
 #[test]
 fn native_replay_drops_an_assistant_turn_whose_results_never_landed() {
     let history = vec![
