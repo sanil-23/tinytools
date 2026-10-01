@@ -159,28 +159,22 @@ impl ToolDialect for NativeDialect {
                     reasoning_content,
                     extra_metadata,
                 } => {
-                    let mut payload = serde_json::json!({
-                        "content": text,
-                        "tool_calls": tool_calls,
-                    });
-                    if let Some(reasoning) = reasoning_content {
-                        payload["reasoning_content"] = Value::String(reasoning.clone());
-                    }
                     vec![
-                        DialectMessage::assistant(payload.to_string())
-                            .with_metadata(extra_metadata.clone()),
+                        DialectMessage::assistant(super::encode_assistant_envelope(
+                            text.as_deref(),
+                            tool_calls,
+                            reasoning_content.as_deref(),
+                        ))
+                        .with_metadata(extra_metadata.clone()),
                     ]
                 }
                 TranscriptEntry::ToolResults(results) => results
                     .iter()
                     .map(|result| {
-                        DialectMessage::tool(
-                            serde_json::json!({
-                                "tool_call_id": result.tool_call_id,
-                                "content": result.content,
-                            })
-                            .to_string(),
-                        )
+                        DialectMessage::tool(super::encode_tool_envelope(
+                            &result.tool_call_id,
+                            &result.content,
+                        ))
                     })
                     .collect(),
             })

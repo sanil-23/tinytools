@@ -30,6 +30,7 @@
 //! host's security policy in the host, where it can be audited.
 
 mod code;
+mod envelope;
 mod native;
 mod pairing;
 mod pformat;
@@ -42,6 +43,12 @@ pub use crate::render::{
     render_json_catalogue, render_pformat_catalogue,
 };
 pub use code::CodeDialect;
+pub use envelope::{
+    AssistantEnvelope, ContentPart, IMAGE_MARKER_PREFIX, encode_assistant_envelope,
+    encode_tool_envelope, join_image_parts, parse_assistant_envelope,
+    parse_canonical_assistant_envelope, parse_canonical_tool_envelope, parse_tool_envelope,
+    split_image_parts,
+};
 pub use native::NativeDialect;
 pub use pairing::pair_tool_cycles;
 pub use pformat::PFormatDialect;
