@@ -203,14 +203,20 @@ mod tests {
     }
 
     #[test]
-    fn literal_envelope_bytes_are_stable() {
+    fn literal_envelope_shape_is_stable() {
+        // Compared as values: key order depends on whether a downstream build
+        // unifies serde_json's `preserve_order`, the shape does not.
+        let value = |text: String| serde_json::from_str::<Value>(&text).unwrap();
         assert_eq!(
-            encode_assistant_envelope(Some("hi"), &[call("c1")], None),
-            r#"{"content":"hi","tool_calls":[{"arguments":"{\"command\":\"ls\"}","id":"c1","name":"shell"}]}"#
+            value(encode_assistant_envelope(Some("hi"), &[call("c1")], None)),
+            serde_json::json!({
+                "content": "hi",
+                "tool_calls": [{"id": "c1", "name": "shell", "arguments": "{\"command\":\"ls\"}"}]
+            })
         );
         assert_eq!(
-            encode_tool_envelope("c1", "ok"),
-            r#"{"content":"ok","tool_call_id":"c1"}"#
+            value(encode_tool_envelope("c1", "ok")),
+            serde_json::json!({"tool_call_id": "c1", "content": "ok"})
         );
     }
 
