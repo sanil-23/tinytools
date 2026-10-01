@@ -51,18 +51,36 @@ impl DialectRole {
 }
 
 /// One flat chat message, as a dialect emits it toward a provider.
+///
+/// [`ToolDialect::to_provider_messages`](super::ToolDialect::to_provider_messages)
+/// packs a native tool round into `content` (the replay envelopes);
+/// [`ToolDialect::to_typed_messages`](super::ToolDialect::to_typed_messages)
+/// emits the same round with the structure in the typed fields below and
+/// `content` holding plain text only.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DialectMessage {
     /// Which turn this is.
     pub role: DialectRole,
-    /// The message body. For dialects that pack structure into the body (the
-    /// native dialect's assistant turns, for instance) this is a JSON string
-    /// the host's provider adapter parses back out.
+    /// The message body. For a typed message this is the visible text (an
+    /// assistant turn's prose, a tool result's output). For the packed form of
+    /// the native dialect it is a JSON string the host's provider adapter
+    /// parses back out.
     pub content: String,
     /// Host passthrough metadata carried verbatim from the transcript record.
     /// The dialect never reads it; it only makes sure it survives.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extra_metadata: Option<Value>,
+    /// The native tool calls an assistant message made. Empty everywhere except
+    /// a typed native assistant turn.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tool_calls: Vec<NativeToolCall>,
+    /// The call a native tool-result message answers. `None` everywhere except
+    /// a typed native tool message.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    /// The thinking output replayed with a typed native assistant turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_content: Option<String>,
 }
 
 impl DialectMessage {
@@ -92,6 +110,31 @@ impl DialectMessage {
             role,
             content: content.into(),
             extra_metadata: None,
+            tool_calls: Vec::new(),
+            tool_call_id: None,
+            reasoning_content: None,
+        }
+    }
+
+    /// A typed native assistant turn: `text` is the visible prose, the calls
+    /// ride in [`Self::tool_calls`].
+    pub fn assistant_with_calls(
+        text: impl Into<String>,
+        tool_calls: Vec<NativeToolCall>,
+        reasoning_content: Option<String>,
+    ) -> Self {
+        Self {
+            tool_calls,
+            reasoning_content,
+            ..Self::assistant(text)
+        }
+    }
+
+    /// A typed native tool result answering `tool_call_id`.
+    pub fn tool_result(tool_call_id: impl Into<String>, content: impl Into<String>) -> Self {
+        Self {
+            tool_call_id: Some(tool_call_id.into()),
+            ..Self::tool(content)
         }
     }
 
