@@ -59,7 +59,7 @@ fn kimi_k2_parallel_calls_parse_in_order() {
 fn unterminated_sentinel_block_is_kept_as_text() {
     let text = "start <｜tool▁call▁begin｜>{\"name\":\"a\"";
     let (cleaned, calls) = parse(text);
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
     assert_eq!(cleaned, text);
 }
 
@@ -67,7 +67,7 @@ fn unterminated_sentinel_block_is_kept_as_text() {
 fn a_sentinel_block_that_decodes_to_nothing_is_malformed() {
     let response = "<|tool_call_begin|>garbage that is not json<|tool_call_end|>";
     let outcome = parse_known(response, &[]);
-    assert!(outcome.calls.is_empty());
+    assert_eq!(outcome.calls.len(), 0);
     assert!(
         outcome
             .diagnostics
@@ -80,7 +80,7 @@ fn a_sentinel_block_that_decodes_to_nothing_is_malformed() {
 fn kimi_argument_begin_with_no_name_before_it_is_not_a_call() {
     let response = "<|tool_call_begin|><|tool_call_argument_begin|>{}<|tool_call_end|>";
     let (_, calls) = parse(response);
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
@@ -118,5 +118,5 @@ fn deepseek_function_prefixed_name_with_no_newline_still_parses() {
 fn deepseek_sep_with_an_empty_name_is_not_a_call() {
     let response = "<|tool_call_begin|><|tool_sep|>{}<|tool_call_end|>";
     let (_, calls) = parse(response);
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }

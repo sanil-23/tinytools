@@ -37,7 +37,7 @@ fn embedded_function_call_marker_in_a_longer_identifier_stays_visible() {
     let (text, calls) = parse(input);
 
     assert_eq!(text, input);
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn unusable_call_fields_fall_back_to_a_valid_name() {
 
         let (text, calls) = parse(&input);
 
-        assert!(text.is_empty());
+        assert_eq!(text.len(), 0);
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].name, "echo");
         assert_eq!(calls[0].arguments, serde_json::json!({"value": "ok"}));
@@ -66,7 +66,7 @@ fn an_unrelated_function_call_object_stays_visible() {
     let (text, calls) = parse(input);
 
     assert_eq!(text, input);
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn a_fenced_function_call_example_is_not_executed() {
     let (text, calls) = parse(input);
 
     assert_eq!(text, input);
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn an_unterminated_marked_object_stays_visible_in_batch_mode() {
     let (text, calls) = parse(input);
 
     assert_eq!(text, input);
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
@@ -117,5 +117,5 @@ fn an_invalid_marked_json_object_stays_visible() {
     let (text, calls) = parse(input);
 
     assert_eq!(text, input);
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }

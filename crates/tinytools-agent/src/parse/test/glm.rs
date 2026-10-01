@@ -6,7 +6,7 @@ use crate::parse::{build_curl_command, map_glm_tool_alias, parse_glm_style_tool_
 #[test]
 fn glm_lines_parse_when_nothing_else_matched() {
     let (text, calls) = parse("shell/command>ls -la");
-    assert!(text.is_empty());
+    assert_eq!(text.len(), 0);
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].name, "shell");
 }
@@ -54,5 +54,5 @@ fn glm_helpers_parse_aliases_urls_and_commands() {
     assert_eq!(calls.len(), 2);
     assert_eq!(calls[0].0, "shell");
     assert_eq!(calls[1].0, "http_request");
-    assert!(parse_glm_style_tool_calls("https://rust-lang.org").is_empty());
+    assert_eq!(parse_glm_style_tool_calls("https://rust-lang.org").len(), 0);
 }

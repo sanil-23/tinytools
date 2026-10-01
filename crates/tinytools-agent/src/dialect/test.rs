@@ -107,7 +107,7 @@ fn native_dialect_covers_non_object_values_fallback_and_protocol_metadata() {
 
     let (text, calls) = dialect.parse_response(&response("narrative only"));
     assert_eq!(text, "narrative only");
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
     let (text, calls) = dialect.parse_response(&response(
         "narrative <tool_call>{\"name\":\"lookup\",\"arguments\":{}}</tool_call>",
     ));
@@ -682,7 +682,7 @@ fn native_replay_drops_a_cycle_whose_results_do_not_cover_every_call() {
 
     // Adjacency is not enough: the provider rejects partial coverage the same
     // way it rejects no coverage, so both halves go.
-    assert!(NativeDialect.to_provider_messages(&history).is_empty());
+    assert_eq!(NativeDialect.to_provider_messages(&history).len(), 0);
 }
 
 #[test]
@@ -692,7 +692,7 @@ fn native_replay_drops_orphan_results() {
         "done".to_string(),
     )])];
 
-    assert!(NativeDialect.to_provider_messages(&history).is_empty());
+    assert_eq!(NativeDialect.to_provider_messages(&history).len(), 0);
 }
 
 #[test]

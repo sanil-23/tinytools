@@ -189,7 +189,7 @@ fn tool_name_and_description() {
     let dir = tempfile::tempdir().unwrap();
     let tool = make_tool(dir.path());
     assert_eq!(tool.name(), "update_memory_md");
-    assert!(!tool.description().is_empty());
+    assert_ne!(tool.description().len(), 0);
 }
 
 #[test]

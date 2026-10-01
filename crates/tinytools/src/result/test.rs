@@ -26,7 +26,7 @@ fn error_sets_the_flag_and_keeps_the_message() {
 fn text_skips_json_blocks_but_output_renders_them() {
     let r = ToolResult::json(json!({"key": "value"}));
     assert!(!r.is_error);
-    assert!(r.text().is_empty());
+    assert_eq!(r.text().len(), 0);
     assert!(r.output().contains("key"));
 }
 
@@ -59,8 +59,8 @@ fn empty_content_renders_empty() {
         content: vec![],
         ..ToolResult::default()
     };
-    assert!(r.text().is_empty());
-    assert!(r.output().is_empty());
+    assert_eq!(r.text().len(), 0);
+    assert_eq!(r.output().len(), 0);
 }
 
 #[test]

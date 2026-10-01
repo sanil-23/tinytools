@@ -324,7 +324,7 @@ fn tool_name_and_description() {
     let tmp = TempDir::new().unwrap();
     let tool = test_tool(tmp.path());
     assert_eq!(tool.name(), "git_operations");
-    assert!(!tool.description().is_empty());
+    assert_ne!(tool.description().len(), 0);
     assert!(tool.description().contains("Git"));
 }
 

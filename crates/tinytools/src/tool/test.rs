@@ -102,7 +102,7 @@ fn the_declaration_defaults_are_the_conservative_answer() {
     assert!(tool.host_extension().is_none());
     assert!(tool.host_call_extension(&Value::Null).is_none());
     assert_eq!(tool.policy(), ToolPolicy::default());
-    assert!(tool.injected_arguments().is_empty());
+    assert_eq!(tool.injected_arguments().len(), 0);
 }
 
 #[tokio::test]

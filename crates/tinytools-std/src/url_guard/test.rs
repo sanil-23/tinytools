@@ -189,7 +189,7 @@ fn normalize_all_invalid_entries_stays_fail_closed() {
 #[test]
 fn normalize_empty_input_stays_empty_for_open_mode() {
     // Explicitly empty input should return empty (open mode is intentional).
-    assert!(normalize_allowed_domains(vec![]).is_empty());
+    assert_eq!(normalize_allowed_domains(vec![]).len(), 0);
 }
 
 #[tokio::test]

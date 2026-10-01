@@ -143,7 +143,7 @@ fn cells_and_columns_cover_bools_and_non_object_rows() {
     assert_eq!(value_to_cell(&json!(true)), "true");
     assert_eq!(value_to_cell(&json!(null)), "");
     assert_eq!(value_to_cell(&json!([1, 2])), "[1,2]");
-    assert!(resolve_columns(&[json!(1), json!(2)], None).is_empty());
+    assert_eq!(resolve_columns(&[json!(1), json!(2)], None).len(), 0);
 }
 
 #[tokio::test]

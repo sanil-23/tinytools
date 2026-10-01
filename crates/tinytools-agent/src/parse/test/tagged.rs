@@ -37,7 +37,7 @@ fn missing_arguments_default_to_empty_object() {
 fn spelling_variants_and_bare_invoke_literal() {
     let (text, calls) =
         parse("<invoke>{\"name\":\"echo\",\"arguments\":{\"value\":\"three\"}}</invoke>");
-    assert!(text.is_empty());
+    assert_eq!(text.len(), 0);
     assert_eq!(calls.len(), 1);
 
     let (_, calls) = parse("<toolcall>{\"name\":\"a\",\"arguments\":{}}</toolcall>");
@@ -52,7 +52,7 @@ fn attribute_form_and_pipe_variant_open_a_block() {
         parse(r#"<tool_call id="call_0">{"name":"foo","arguments":{"a":1}}</tool_call>"#);
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].name, "foo");
-    assert!(cleaned.is_empty());
+    assert_eq!(cleaned.len(), 0);
 
     let (_, calls) = parse(r#"<tool_call|>{"name":"bar","arguments":{}}</tool_call>"#);
     assert_eq!(calls.len(), 1);
@@ -62,7 +62,7 @@ fn attribute_form_and_pipe_variant_open_a_block() {
 #[test]
 fn plural_tool_calls_tag_is_not_an_opener() {
     let (cleaned, calls) = parse("the <tool_calls> key holds them");
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
     assert_eq!(cleaned, "the <tool_calls> key holds them");
 }
 
@@ -70,7 +70,7 @@ fn plural_tool_calls_tag_is_not_an_opener() {
 fn malformed_body_is_dropped_without_dispatching() {
     let (text, calls) = parse("before <tool_call>not-json</tool_call> after");
     assert_eq!(text, "before\nafter");
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
@@ -121,24 +121,24 @@ fn unclosed_tag_recovery_preserves_unrelated_markup_after_the_json() {
 fn unclosed_tag_without_json_is_kept_as_text() {
     let (text, calls) = parse("before <tool-call>not-json");
     assert_eq!(text, "before <tool-call>not-json");
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 
     let (cleaned, calls) = parse("text <tool_call>{\"name\":\"x\"");
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
     assert_eq!(cleaned, "text <tool_call>{\"name\":\"x\"");
 }
 
 #[test]
 fn prose_mention_without_closing_angle_is_not_a_tag() {
     let (cleaned, calls) = parse("wrap it in <tool_call and go");
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
     assert_eq!(cleaned, "wrap it in <tool_call and go");
 }
 
 #[test]
 fn plain_text_is_returned_verbatim() {
     let (cleaned, calls) = parse("just a normal answer");
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
     assert_eq!(cleaned, "just a normal answer");
 }
 
@@ -347,7 +347,7 @@ fn a_tagged_body_with_a_registry_still_honours_argument_key_aliases() {
 fn pformat_registry_with_plain_text_yields_nothing() {
     let (text, calls) = parse_tool_calls_with_pformat("plain text", &echo_registry());
     assert_eq!(text, "plain text");
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
@@ -381,7 +381,7 @@ fn code_calls_need_a_registry() {
     // Without a registry there is no layout to bind against, so the body is
     // a recognised block with no call in it — exactly the P-Format rule.
     let (_, calls) = parse("<tool_call>echo(value=\"hello\")</tool_call>");
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
@@ -408,7 +408,7 @@ fn a_code_call_wrapped_in_a_python_fence_inside_the_tag_is_unwrapped() {
 fn a_top_level_python_fence_is_an_example_not_a_call() {
     let response = "Like this:\n```python\necho(value=\"hi\")\n```\n";
     let (text, calls) = parse_tool_calls_with_pformat(response, &echo_registry());
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
     assert!(text.contains("echo(value=\"hi\")"));
 }
 
@@ -443,14 +443,14 @@ fn code_pformat_json_and_glm_siblings_all_survive() {
 fn a_prose_body_mentioning_a_call_is_malformed_not_a_call() {
     let response = "<tool_call>I will call echo(value=\"hi\") now</tool_call>";
     let (_, calls) = parse_tool_calls_with_pformat(response, &echo_registry());
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
 fn a_code_call_to_an_unknown_tool_is_not_a_call() {
     let response = "<tool_call>rm_rf(path=\"/\")</tool_call>";
     let (_, calls) = parse_tool_calls_with_pformat(response, &echo_registry());
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 // ── Doubled tags ────────────────────────────────────────────────────────────
@@ -506,7 +506,7 @@ fn an_orphaned_closer_with_no_opener_anywhere_is_removed_not_shown() {
         text,
         "Let me check the details on the top contenders to find the best one for you.\nHere are the results."
     );
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
@@ -551,7 +551,7 @@ fn a_bare_trailing_opener_is_dropped_not_shown() {
     // An abandoned block at the end of a reply carries no call and no
     // information; showing `<tool_call>` to the user is never right.
     let (text, calls) = parse("Let me fetch a few sites directly.\n\n<tool_call>\n");
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
     assert_eq!(text, "Let me fetch a few sites directly.");
     // A block with real (if unparseable) content is still kept as text.
     let (text, _) = parse("before <tool-call>not-json");

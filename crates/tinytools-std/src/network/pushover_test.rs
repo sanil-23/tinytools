@@ -22,7 +22,7 @@ fn pushover_tool_description() {
         test_security(AutonomyLevel::Full, 100),
         PathBuf::from("/tmp"),
     );
-    assert!(!tool.description().is_empty());
+    assert_ne!(tool.description().len(), 0);
 }
 
 #[test]

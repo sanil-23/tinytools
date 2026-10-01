@@ -59,8 +59,8 @@ async fn status_parses_staged_unstaged_and_untracked() {
     let result = run(&tool, json!({"operation": "status"})).await;
     assert!(!result.is_error, "{}", result.output());
     let parsed: serde_json::Value = serde_json::from_str(&result.output()).unwrap();
-    assert!(!parsed["staged"].as_array().unwrap().is_empty());
-    assert!(!parsed["unstaged"].as_array().unwrap().is_empty());
+    assert_ne!(parsed["staged"].as_array().unwrap().len(), 0);
+    assert_ne!(parsed["unstaged"].as_array().unwrap().len(), 0);
     assert!(
         parsed["untracked"]
             .as_array()
