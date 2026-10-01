@@ -135,4 +135,5 @@ impl Tool for ReadDiffTool {
 }
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;

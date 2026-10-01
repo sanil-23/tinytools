@@ -504,4 +504,5 @@ pub fn args_without_action(args: &Value) -> Value {
 }
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;

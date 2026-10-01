@@ -5,4 +5,5 @@ mod types;
 pub use types::PermissionLevel;
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;

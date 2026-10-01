@@ -425,5 +425,5 @@ impl Tool for HttpRequestTool {
 }
 
 #[cfg(test)]
-#[path = "http_request_test.rs"]
+#[path = "http_request_tests.rs"]
 mod tests;

@@ -333,5 +333,5 @@ fn is_html(extractor: &dyn HtmlExtractor, body: &str, content_type: Option<&str>
 }
 
 #[cfg(test)]
-#[path = "web_fetch_test.rs"]
+#[path = "web_fetch_tests.rs"]
 mod tests;

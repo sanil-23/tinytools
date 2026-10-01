@@ -5,6 +5,7 @@
 
 mod family;
 #[cfg(test)]
+#[path = "lib_tests.rs"]
 mod test;
 mod types;
 pub use types::{

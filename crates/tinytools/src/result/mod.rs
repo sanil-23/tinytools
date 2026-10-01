@@ -5,4 +5,5 @@ mod types;
 pub use types::{FileData, ImageData, ToolContent, ToolControl, ToolErrorKind, ToolResult};
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;

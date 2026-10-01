@@ -154,4 +154,5 @@ async fn run_git(dir: &std::path::Path, args: &[&str]) -> anyhow::Result<String>
 }
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;

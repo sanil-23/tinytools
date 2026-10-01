@@ -232,7 +232,9 @@ fn page_contents(contents: &str, path: &str, offset: usize) -> String {
 }
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;
 
 #[cfg(test)]
+#[path = "extra_tests.rs"]
 mod extra_test;

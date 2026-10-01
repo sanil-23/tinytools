@@ -90,4 +90,5 @@ pub fn sandbox_exit_code(code: i32) -> Option<i32> {
 }
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;

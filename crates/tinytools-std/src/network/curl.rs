@@ -397,5 +397,5 @@ fn sanitize_dest_subdir(raw: &str) -> String {
 }
 
 #[cfg(test)]
-#[path = "curl_test.rs"]
+#[path = "curl_tests.rs"]
 mod tests;

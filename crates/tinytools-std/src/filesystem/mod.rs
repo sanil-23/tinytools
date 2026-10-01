@@ -44,6 +44,7 @@ mod update_memory_md;
 mod workspace_state;
 
 #[cfg(test)]
+#[path = "gate_tests.rs"]
 mod gate_test;
 #[cfg(test)]
 mod test_support;
@@ -66,4 +67,5 @@ pub use update_memory_md::UpdateMemoryMdTool;
 pub use workspace_state::WorkspaceStateTool;
 
 #[cfg(test)]
+#[path = "contract_tests.rs"]
 mod contract_test;
