@@ -93,7 +93,7 @@ fn an_element_without_a_registry_is_left_alone() {
 fn ordinary_markup_is_not_a_call() {
     let outcome = parse("<div><p>x</p></div>");
     assert!(outcome.calls.is_empty(), "{:?}", outcome.calls);
-    assert!(outcome.diagnostics.is_empty());
+    assert_eq!(outcome.diagnostics.len(), 0);
     assert_eq!(outcome.text, "<div><p>x</p></div>");
 }
 
@@ -102,7 +102,7 @@ fn prose_inside_a_known_tool_tag_is_left_alone() {
     let text = "<todo>remember to <todos>ship</todos> it</todo>";
     let outcome = parse(text);
     assert!(outcome.calls.is_empty(), "{:?}", outcome.calls);
-    assert!(outcome.diagnostics.is_empty());
+    assert_eq!(outcome.diagnostics.len(), 0);
     assert_eq!(outcome.text, text);
 }
 

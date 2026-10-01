@@ -11,8 +11,8 @@ use super::{SandboxMode, WorkspaceDescriptor};
 fn a_new_descriptor_is_rooted_with_no_extras() {
     let ws = WorkspaceDescriptor::new("/work/agent-a");
     assert_eq!(ws.root, PathBuf::from("/work/agent-a"));
-    assert!(ws.trusted_roots.is_empty());
-    assert!(ws.policy_id.is_empty());
+    assert_eq!(ws.trusted_roots.len(), 0);
+    assert_eq!(ws.policy_id.len(), 0);
     assert_eq!(ws.sandbox, SandboxMode::Inherit);
 }
 

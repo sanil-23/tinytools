@@ -19,7 +19,7 @@ fn a_wire_message_with_tool_calls_array_parses() {
 #[test]
 fn a_bare_object_with_canonical_arguments_parses() {
     let (text, calls) = parse(r#"{"name":"echo","arguments":{"value":"hi"}}"#);
-    assert!(text.is_empty());
+    assert_eq!(text.len(), 0);
     assert_eq!(calls.len(), 1);
 }
 
@@ -54,7 +54,7 @@ fn llama_bare_object_with_mismatched_quotes_is_repaired() {
         outcome.calls[0].arguments,
         serde_json::json!({ "city": "Paris" })
     );
-    assert!(outcome.text.is_empty());
+    assert_eq!(outcome.text.len(), 0);
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn parse_options_default_matches_new_and_allows_bare_json() {
 fn bare_json_can_be_disabled() {
     let options = ParseOptions::new().without_bare_json();
     let outcome = crate::parse::parse_text(r#"{"name":"echo","arguments":{}}"#, &options);
-    assert!(outcome.calls.is_empty());
+    assert_eq!(outcome.calls.len(), 0);
 }
 
 #[test]

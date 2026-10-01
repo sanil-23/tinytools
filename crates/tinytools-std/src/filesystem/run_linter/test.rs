@@ -17,7 +17,7 @@ fn name_is_correct() {
 #[test]
 fn description_is_non_empty() {
     let tmp = TempDir::new().unwrap();
-    assert!(!make_tool(&tmp).description().is_empty());
+    assert_ne!(make_tool(&tmp).description().len(), 0);
 }
 
 #[test]

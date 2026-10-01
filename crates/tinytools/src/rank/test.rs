@@ -45,14 +45,14 @@ fn index_ranks_by_description_and_breaks_ties_by_key() {
 fn index_on_one_document_corpus_still_finds_it() {
     let index = Bm25Index::build([("only", "fetch the latest price for a ticker symbol")]);
     assert_eq!(index.search("ticker price", 5), vec![0]);
-    assert!(index.search("calendar", 5).is_empty());
+    assert_eq!(index.search("calendar", 5).len(), 0);
 }
 
 #[test]
 fn index_returns_nothing_for_stopword_only_queries() {
     let index = Bm25Index::build([("a", "send a message"), ("b", "read a file")]);
-    assert!(index.search("the a of", 5).is_empty());
-    assert!(Bm25Index::default().search("anything", 5).is_empty());
+    assert_eq!(index.search("the a of", 5).len(), 0);
+    assert_eq!(Bm25Index::default().search("anything", 5).len(), 0);
     assert!(Bm25Index::default().is_empty());
 }
 

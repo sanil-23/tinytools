@@ -18,7 +18,7 @@ fn harmony_commentary_call_parses() {
 fn harmony_channel_without_target_is_not_a_call() {
     let response = "<|channel|>analysis<|message|>thinking hard<|end|>final answer";
     let (text, calls) = parse(response);
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
     assert_eq!(text, response);
 }
 
@@ -49,7 +49,7 @@ fn harmony_channel_with_target_but_no_message_is_not_a_call_in_batch_mode() {
     // guessed at.
     let response = "<|channel|>commentary to=functions.read still thinking";
     let (text, calls) = parse(response);
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
     assert_eq!(text, response);
 }
 
@@ -97,7 +97,7 @@ fn mistral_v3_array_of_non_call_objects_yields_no_calls() {
     // is reported as malformed rather than silently dropped.
     let response = "[TOOL_CALLS] [{\"foo\":1}]";
     let outcome = parse_known(response, &[]);
-    assert!(outcome.calls.is_empty());
+    assert_eq!(outcome.calls.len(), 0);
     assert!(
         outcome
             .diagnostics
@@ -110,7 +110,7 @@ fn mistral_v3_array_of_non_call_objects_yields_no_calls() {
 fn mistral_v11_name_with_invalid_characters_is_not_a_call() {
     let response = "[TOOL_CALLS]get-weather[ARGS]{\"city\":\"Paris\"}";
     let outcome = parse_known(response, &[]);
-    assert!(outcome.calls.is_empty());
+    assert_eq!(outcome.calls.len(), 0);
     assert!(
         outcome
             .diagnostics
@@ -123,7 +123,7 @@ fn mistral_v11_name_with_invalid_characters_is_not_a_call() {
 fn mistral_v11_args_with_unparseable_json_is_not_a_call() {
     let response = "[TOOL_CALLS]get_weather[ARGS]not json at all";
     let outcome = parse_known(response, &[]);
-    assert!(outcome.calls.is_empty());
+    assert_eq!(outcome.calls.len(), 0);
     assert!(
         outcome
             .diagnostics
@@ -145,7 +145,7 @@ fn mistral_v11_non_object_arguments_are_recovered_into_an_object() {
 fn mistral_marker_with_no_parseable_call_is_malformed_in_batch_mode() {
     let response = "[TOOL_CALLS] this trails off with no call shape";
     let outcome = parse_known(response, &[]);
-    assert!(outcome.calls.is_empty());
+    assert_eq!(outcome.calls.len(), 0);
     assert!(
         outcome
             .diagnostics

@@ -62,7 +62,7 @@ fn own_write_does_not_trigger_staleness() {
     std::thread::sleep(Duration::from_millis(5));
     coord.record_write("agent-a", path.clone());
     let stale = coord.stale_reads_for_parent("agent-a");
-    assert!(stale.is_empty());
+    assert_eq!(stale.len(), 0);
     assert_eq!(coord.check_stale_read("agent-a", &path), None);
 }
 
@@ -104,10 +104,11 @@ fn parent_stale_files_detects_child_writes() {
         coord.parent_stale_files("parent", &["child-1".to_string()]),
         vec![path]
     );
-    assert!(
+    assert_eq!(
         coord
             .parent_stale_files("parent", &["someone-else".to_string()])
-            .is_empty()
+            .len(),
+        0
     );
 }
 

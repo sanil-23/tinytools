@@ -68,7 +68,7 @@ fn a_function_call_marker_with_no_body_is_held_until_the_next_fragment() {
     let mut s = StreamScrubber::new();
     let first = s.feed("answer: function_call: ");
     assert_eq!(first.text, "answer: ");
-    assert!(first.calls.is_empty());
+    assert_eq!(first.calls.len(), 0);
 
     let second = s.feed(r#"{"call":"echo","arguments":{}} done"#);
     assert_eq!(second.text, " done");
@@ -137,7 +137,7 @@ fn a_whitespace_prefixed_dsml_opener_split_before_the_marker_is_held() {
         first.text, "",
         "a possible whitespace-prefixed DSML opener must be held"
     );
-    assert!(first.calls.is_empty());
+    assert_eq!(first.calls.len(), 0);
 
     let second = s.feed("| DSML | invoke name=\"read\">{\"path\":\"a\"}</| DSML | invoke>");
     assert_eq!(second.calls.len(), 1);
@@ -182,7 +182,7 @@ fn a_fenced_example_split_across_fragments_never_leaks_a_call() {
         first.text, "example:\n",
         "the open fence must be held, not drained"
     );
-    assert!(first.calls.is_empty());
+    assert_eq!(first.calls.len(), 0);
 
     let second =
         s.feed("echo <tool_call>{\"name\":\"x\",\"arguments\":{}}</tool_call>\n```\nafter");
@@ -207,7 +207,7 @@ fn a_namespaced_invoke_opener_split_before_its_closing_bracket_is_held() {
         first.text, "",
         "an unterminated namespaced opener must be held"
     );
-    assert!(first.calls.is_empty());
+    assert_eq!(first.calls.len(), 0);
 
     let second = s.feed("><parameter name=\"path\">a</parameter></atem:invoke>");
     assert_eq!(second.calls.len(), 1);
@@ -226,7 +226,7 @@ fn a_sentinel_split_on_an_unlisted_bar_underscore_combination_is_held() {
         first.text, "",
         "an unlisted bar/separator split must be held"
     );
-    assert!(first.calls.is_empty());
+    assert_eq!(first.calls.len(), 0);
 
     let second =
         s.feed("call_begin｜>get_weather<｜tool_sep｜>{\"city\":\"Paris\"}<｜tool_call_end｜>");

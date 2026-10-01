@@ -39,8 +39,8 @@ fn fence_ranges_cover_languages_and_unclosed_fences() {
     assert_eq!(ranges.len(), 2);
     assert_eq!(&text[ranges[0].clone()], "```rust\nx\n```");
     assert_eq!(ranges[1].end, text.len());
-    assert!(fence_ranges("```\nplain\n```").is_empty());
-    assert!(fence_ranges("```tool_call\n{}\n```").is_empty());
+    assert_eq!(fence_ranges("```\nplain\n```").len(), 0);
+    assert_eq!(fence_ranges("```tool_call\n{}\n```").len(), 0);
 }
 
 // ── A call tag on the fence line itself ────────────────────────────────────
@@ -250,8 +250,8 @@ fn json_scanners_cover_common_edge_cases() {
         values,
         vec![serde_json::json!({ "a": 1 }), serde_json::json!([1, 2])]
     );
-    assert!(extract_json_values("").is_empty());
-    assert!(extract_json_values("{not json} [still bad]").is_empty());
+    assert_eq!(extract_json_values("").len(), 0);
+    assert_eq!(extract_json_values("{not json} [still bad]").len(), 0);
 
     assert_eq!(
         find_json_end("  {\"a\":\"}\"}tail"),

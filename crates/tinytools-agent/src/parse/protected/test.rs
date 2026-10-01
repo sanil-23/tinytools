@@ -9,7 +9,7 @@ fn a_fence_indented_more_than_three_spaces_is_not_a_fence() {
     // indented code block, not a fence, so it must not open a protected
     // range even though it carries a language tag.
     let text = "    ```rust\nfn main() {}\n    ```\n";
-    assert!(fence_ranges(text).is_empty());
+    assert_eq!(fence_ranges(text).len(), 0);
 }
 
 #[test]
@@ -17,7 +17,7 @@ fn a_two_backtick_run_is_not_a_fence() {
     // A fence needs at least three backticks (or tildes); shorter runs are
     // inline code spans, not fence delimiters.
     let text = "``json\n{\"a\":1}\n``\n";
-    assert!(fence_ranges(text).is_empty());
+    assert_eq!(fence_ranges(text).len(), 0);
 }
 
 #[test]

@@ -16,7 +16,7 @@ fn image_info_tool_name() {
 #[test]
 fn image_info_tool_description() {
     let tool = ImageInfoTool::new(test_security());
-    assert!(!tool.description().is_empty());
+    assert_ne!(tool.description().len(), 0);
     assert!(tool.description().contains("image"));
 }
 

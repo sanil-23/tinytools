@@ -31,7 +31,7 @@ fn unclosed_invoke_is_kept_as_text() {
         text,
         "lead <invoke name=\"broken\"><parameter name=\"x\">1</parameter>"
     );
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn anthropic_function_calls_wrapper_is_stripped() {
 fn namespaced_invoke_from_muse_spark_parses() {
     let source = "<atem:function_calls><atem:invoke name=\"default.terminal\"><atem:parameter name=\"command\">echo hi</atem:parameter></atem:invoke></atem:function_calls>";
     let (text, calls) = parse(source);
-    assert!(text.is_empty());
+    assert_eq!(text.len(), 0);
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].name, "default.terminal");
     assert_eq!(calls[0].arguments["command"], "echo hi");

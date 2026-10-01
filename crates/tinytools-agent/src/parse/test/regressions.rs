@@ -29,7 +29,7 @@ fn cross_alias_closing_tags_are_recovered() {
     let response =
         "<toolcall>\n{\"name\": \"shell\", \"arguments\": {\"command\": \"date\"}}\n</tool_call>";
     let (text, calls) = parse(response);
-    assert!(text.is_empty());
+    assert_eq!(text.len(), 0);
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].name, "shell");
 }
@@ -49,7 +49,7 @@ fn an_empty_tool_result_block_is_not_a_call() {
     let response = "I'll run that command.\n<tool_result name=\"shell\">\n\n</tool_result>\nDone.";
     let (text, calls) = parse(response);
     assert!(text.contains("Done."));
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn an_empty_tool_calls_array_is_returned_as_text() {
     let response = r#"{"content": "Hello", "tool_calls": []}"#;
     let (text, calls) = parse(response);
     assert!(text.contains("Hello"));
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn invoke_attribute_form_scalar_policy_and_empty_names() {
 fn invoke_without_a_name_attribute_is_not_a_call() {
     let input = "<invoke foo=\"bar\">\n<parameter name=\"v\">hi</parameter>\n</invoke>";
     let (_text, calls) = parse(input);
-    assert!(calls.is_empty());
+    assert_eq!(calls.len(), 0);
 }
 
 #[test]
