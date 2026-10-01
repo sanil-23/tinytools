@@ -80,13 +80,13 @@ async fn suppresses_hits_when_none_wins_or_no_tool_is_needed() {
         .rank("question", &RankContext::empty(), &candidates(), 2)
         .await
         .unwrap_or_default();
-    assert!(none_hits.is_empty());
+    assert_eq!(none_hits, [] as [tinytools::RankHit; 0]);
     let (no_tool_ranker, _) = ranker([("slack", 0.8), ("gmail", 0.1), ("none", 0.1)], Some(0.2));
     let no_tool_hits = no_tool_ranker
         .rank("question", &RankContext::empty(), &candidates(), 2)
         .await
         .unwrap_or_default();
-    assert!(no_tool_hits.is_empty());
+    assert_eq!(no_tool_hits, [] as [tinytools::RankHit; 0]);
 }
 
 #[test]
@@ -116,12 +116,12 @@ async fn validates_inputs_and_short_circuits_empty_work() {
         .rank("request", &RankContext::empty(), &[], 2)
         .await
         .unwrap_or_default();
-    assert!(empty.is_empty());
+    assert_eq!(empty, [] as [tinytools::RankHit; 0]);
     let zero = ranker
         .rank("request", &RankContext::empty(), &candidates(), 0)
         .await
         .unwrap_or_default();
-    assert!(zero.is_empty());
+    assert_eq!(zero, [] as [tinytools::RankHit; 0]);
     assert!(matches!(
         ranker
             .rank("  ", &RankContext::empty(), &candidates(), 2)
