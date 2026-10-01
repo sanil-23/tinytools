@@ -93,6 +93,16 @@ pub trait ToolDialect: Send + Sync {
     /// Replay a transcript as flat provider messages.
     fn to_provider_messages(&self, history: &[TranscriptEntry]) -> Vec<DialectMessage>;
 
+    /// Replay a transcript as **typed** messages: the same rows as
+    /// [`Self::to_provider_messages`], but a native tool round keeps its
+    /// structure in [`DialectMessage::tool_calls`] / [`DialectMessage::tool_call_id`]
+    /// with plain-text `content`, instead of a JSON envelope packed into the
+    /// body. Text dialects have no such structure, so the default is the packed
+    /// form unchanged.
+    fn to_typed_messages(&self, history: &[TranscriptEntry]) -> Vec<DialectMessage> {
+        self.to_provider_messages(history)
+    }
+
     /// Whether structured tool specs belong in the API request.
     ///
     /// `false` for the text dialects: sending specs a dialect cannot read back
