@@ -178,6 +178,7 @@ pub fn join_image_parts(parts: &[ContentPart]) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
