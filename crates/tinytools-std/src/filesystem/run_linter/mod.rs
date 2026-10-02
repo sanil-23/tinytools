@@ -155,4 +155,5 @@ impl Tool for RunLinterTool {
 }
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;

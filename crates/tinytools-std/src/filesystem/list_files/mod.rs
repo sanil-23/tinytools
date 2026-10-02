@@ -139,7 +139,9 @@ impl ListFilesTool {
 }
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;
 
 #[cfg(test)]
+#[path = "extra_tests.rs"]
 mod extra_test;

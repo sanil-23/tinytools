@@ -441,5 +441,5 @@ pub(crate) fn coerce_value(raw: &str, ty: PFormatParamType) -> Value {
 // ──────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
-#[path = "pformat_test.rs"]
+#[path = "pformat_tests.rs"]
 mod tests;

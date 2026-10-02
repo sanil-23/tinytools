@@ -53,6 +53,7 @@ mod signature;
 mod types;
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;
 
 use serde_json::{Map, Value};

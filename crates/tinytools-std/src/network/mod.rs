@@ -38,6 +38,7 @@ mod pushover;
 mod web_fetch;
 
 #[cfg(test)]
+#[path = "contract_tests.rs"]
 mod contract_test;
 #[cfg(test)]
 mod test_support;

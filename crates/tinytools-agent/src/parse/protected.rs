@@ -20,6 +20,7 @@
 use std::ops::Range;
 
 #[cfg(test)]
+#[path = "protected/protected_tests.rs"]
 mod test;
 
 /// Info-string languages that mark a fence as a tool call rather than a code

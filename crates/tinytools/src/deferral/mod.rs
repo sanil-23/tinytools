@@ -69,4 +69,5 @@ pub fn deferred_tool_names(tools: &[Box<dyn Tool>]) -> HashSet<String> {
 }
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;

@@ -123,5 +123,5 @@ pub trait ToolDialect: Send + Sync {
 }
 
 #[cfg(test)]
-#[path = "test.rs"]
+#[path = "mod_tests.rs"]
 mod test;

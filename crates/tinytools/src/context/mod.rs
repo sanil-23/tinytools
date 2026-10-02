@@ -5,4 +5,5 @@ mod types;
 pub use types::ToolRunContext;
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;

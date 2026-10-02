@@ -479,4 +479,5 @@ pub fn is_non_global_v6(v6: std::net::Ipv6Addr) -> bool {
 }
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;

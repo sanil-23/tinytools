@@ -11,4 +11,5 @@ pub use injected::{
 pub use types::{ToolCallOptions, ToolTimeout};
 
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;

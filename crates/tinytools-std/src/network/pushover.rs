@@ -213,5 +213,5 @@ impl Tool for PushoverTool {
 }
 
 #[cfg(test)]
-#[path = "pushover_test.rs"]
+#[path = "pushover_tests.rs"]
 mod tests;

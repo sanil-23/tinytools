@@ -364,5 +364,5 @@ fn unescape_attribute(value: &str) -> String {
 }
 
 #[cfg(test)]
-#[path = "results_test.rs"]
+#[path = "results_tests.rs"]
 mod test;

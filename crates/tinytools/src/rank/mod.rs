@@ -33,6 +33,7 @@
 
 mod bm25;
 #[cfg(test)]
+#[path = "mod_tests.rs"]
 mod test;
 mod types;
 
