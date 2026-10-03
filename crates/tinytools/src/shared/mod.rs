@@ -1,59 +1,44 @@
-//! Stub.
+//! Sharing one built tool across many owned belts.
+//!
+//! A host commonly builds an agent's tools **once** and keeps them as
+//! `Arc<dyn Tool>`, because the same instance is wanted in several places — a
+//! per-agent pool, an MCP server re-exporting the belt, a catalogue index. A
+//! harness, meanwhile, often asks for an owned `Vec<Box<dyn Tool>>` and asks
+//! for it **per turn**, because the session it hands the belt to is rebuilt
+//! between turns and a `Box<dyn Tool>` cannot outlive it.
+//!
+//! [`SharedTool`] bridges the two: a thin `Box` around the `Arc`, minted per
+//! turn, delegating every call to the one shared instance. No tool is rebuilt,
+//! no state is duplicated, and a tool holding a connection or a cache keeps
+//! holding exactly one. [`share_belt`] and [`owned_belt`] convert a whole belt
+//! in each direction.
+
+mod types;
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use serde_json::Value;
-
-use crate::result::ToolResult;
 use crate::tool::Tool;
 
-/// Stub.
-pub struct SharedTool(Arc<dyn Tool>);
+pub use types::SharedTool;
 
-impl std::fmt::Debug for SharedTool {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("SharedTool").finish()
-    }
-}
-
-impl SharedTool {
-    /// Stub.
-    #[must_use]
-    pub fn new(inner: Arc<dyn Tool>) -> Self {
-        Self(inner)
-    }
-}
-
-/// Stub.
+/// Moves a built belt into shared handles, so a host can keep one copy and
+/// hand others out without rebuilding any tool.
 #[must_use]
-pub fn owned_belt(_shared: &[Arc<dyn Tool>]) -> Vec<Box<dyn Tool>> {
-    Vec::new()
+pub fn share_belt(belt: Vec<Box<dyn Tool>>) -> Vec<Arc<dyn Tool>> {
+    belt.into_iter().map(Arc::from).collect()
 }
 
-/// Stub.
+/// The shared belt as an owned one, for a single turn.
+///
+/// Call it wherever a harness wants owned tools — typically once per turn from
+/// an agent's tool factory. Each entry is a [`SharedTool`] pointing at the
+/// same instance; the tools themselves are not rebuilt.
 #[must_use]
-pub fn share_belt(_belt: Vec<Box<dyn Tool>>) -> Vec<Arc<dyn Tool>> {
-    Vec::new()
-}
-
-#[async_trait]
-impl Tool for SharedTool {
-    fn name(&self) -> &str {
-        self.0.name()
-    }
-
-    fn description(&self) -> &str {
-        self.0.description()
-    }
-
-    fn parameters_schema(&self) -> Value {
-        self.0.parameters_schema()
-    }
-
-    async fn execute(&self, args: Value) -> anyhow::Result<ToolResult> {
-        self.0.execute(args).await
-    }
+pub fn owned_belt(shared: &[Arc<dyn Tool>]) -> Vec<Box<dyn Tool>> {
+    shared
+        .iter()
+        .map(|tool| Box::new(SharedTool::new(Arc::clone(tool))) as Box<dyn Tool>)
+        .collect()
 }
 
 #[cfg(test)]
