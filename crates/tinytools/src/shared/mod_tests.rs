@@ -255,12 +255,8 @@ async fn every_execute_entry_point_reaches_the_inner_override() {
 
     let options = ToolCallOptions {
         prefer_markdown: true,
-        ..ToolCallOptions::default()
     };
-    let with_options = tool
-        .execute_with_options(json!({}), options.clone())
-        .await
-        .unwrap();
+    let with_options = tool.execute_with_options(json!({}), options).await.unwrap();
     assert_eq!(with_options.output(), "options markdown=true");
 
     let with_context = tool
