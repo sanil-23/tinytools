@@ -111,6 +111,7 @@ pub mod permission;
 pub mod policy;
 pub mod rank;
 pub mod result;
+pub mod shared;
 pub mod spec;
 pub mod tool;
 pub mod workspace;
