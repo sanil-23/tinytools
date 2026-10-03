@@ -3,8 +3,8 @@
 
 use crate::parse::contains_call_markup;
 
-/// What DeepSeek V4 returned in place of a summary when its request declared
-/// no tools (captured from the OpenHuman harness benchmark).
+/// What `DeepSeek` V4 returned in place of a summary when its request declared
+/// no tools (captured from the `OpenHuman` harness benchmark).
 const DSML: &str = "<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name=\"shell\">\n\
 <｜｜DSML｜｜ parameter name=\"command\" string=\"true\">cd /app && cat src/lib.rs</｜｜DSML｜｜ parameter>\n\
 </｜｜DSML｜｜ invoke>\n</｜｜DSML｜｜ calls>";

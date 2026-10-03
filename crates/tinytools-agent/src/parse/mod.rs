@@ -280,7 +280,7 @@ pub fn parse_tool_calls_with_pformat(
 ///
 /// For a caller that must refuse text which is really a tool call rather
 /// than read calls out of it — a summarizer whose request declared no tools,
-/// say, where DeepSeek V4 can answer with `<｜DSML｜invoke name="shell">…`
+/// say, where `DeepSeek` V4 can answer with `<｜DSML｜invoke name="shell">…`
 /// instead of a summary. A response that is only a bare JSON object does
 /// not count, since an answer may legitimately be one, and markup quoted
 /// inside a language-tagged fence is protected as usual.
