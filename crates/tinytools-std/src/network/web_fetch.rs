@@ -213,6 +213,19 @@ impl Tool for WebFetchTool {
         // before contacting the host.
         self.gate.disclose(&host_of(&url), false, false);
 
+        self.fetch_validated(&url, max_bytes, raw_requested).await
+    }
+}
+
+impl WebFetchTool {
+    /// Issue the GET for a URL that already passed the gate and the SSRF
+    /// guard, and render the response for the model.
+    async fn fetch_validated(
+        &self,
+        url: &str,
+        max_bytes: usize,
+        raw_requested: bool,
+    ) -> anyhow::Result<ToolResult> {
         // Disable automatic redirect following: reqwest follows up to 10
         // redirects by default, and a redirect target may be on a host
         // outside the allowed-domains list. We surface 3xx responses to
@@ -226,7 +239,7 @@ impl Tool for WebFetchTool {
             Err(e) => return Ok(ToolResult::error(format!("Failed to build client: {e}"))),
         };
 
-        let resp = match client.get(&url).send().await {
+        let resp = match client.get(url).send().await {
             Ok(r) => r,
             Err(e) => return Ok(ToolResult::error(format!("Request failed: {e}"))),
         };
