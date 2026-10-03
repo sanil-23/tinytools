@@ -76,40 +76,47 @@ pub fn parse_text(text: &str, options: &ParseOptions<'_>) -> ParseOutcome {
     let diagnostics = scan.diagnostics;
 
     if calls.is_empty() {
-        let joined = unprotected_narrative(text, &scan.kept);
-        let (cleaned, glm_calls) = grammar::glm::parse_and_strip(&joined);
+        let (cleaned, glm_calls) = parse_unprotected_glm(text, &scan.kept);
         if !glm_calls.is_empty() {
             calls = glm_calls;
-            return finalize(cleaned.trim().to_string(), calls, diagnostics, options);
+            return finalize(cleaned, calls, diagnostics, options);
         }
     }
     finalize(parts.join("\n"), calls, diagnostics, options)
 }
 
-/// Keeps narrative for the GLM fallback while excluding fenced examples.
-fn unprotected_narrative(text: &str, kept: &[Range<usize>]) -> String {
+/// Parses GLM calls outside fences and keeps fenced examples in the narrative.
+fn parse_unprotected_glm(text: &str, kept: &[Range<usize>]) -> (String, Vec<ParsedToolCall>) {
     let protected = protected::fence_ranges(text);
     let mut parts = Vec::new();
+    let mut calls = Vec::new();
     for range in kept {
         let mut cursor = range.start;
+        let mut cleaned = String::new();
         for fence in &protected {
             if fence.end <= cursor || fence.start >= range.end {
                 continue;
             }
             if cursor < fence.start {
-                parts.push(text[cursor..fence.start.min(range.end)].trim());
+                let (part, parsed) = grammar::glm::parse_and_strip(&text[cursor..fence.start]);
+                cleaned.push_str(&part);
+                calls.extend(parsed);
             }
-            cursor = fence.end.min(range.end);
+            let end = fence.end.min(range.end);
+            cleaned.push_str(&text[cursor.max(fence.start)..end]);
+            cursor = end;
         }
         if cursor < range.end {
-            parts.push(text[cursor..range.end].trim());
+            let (part, parsed) = grammar::glm::parse_and_strip(&text[cursor..range.end]);
+            cleaned.push_str(&part);
+            calls.extend(parsed);
+        }
+        let cleaned = cleaned.trim();
+        if !cleaned.is_empty() {
+            parts.push(cleaned.to_string());
         }
     }
-    parts
-        .into_iter()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n")
+    (parts.join("\n"), calls)
 }
 
 /// Name resolution and the diagnostics it produces.
