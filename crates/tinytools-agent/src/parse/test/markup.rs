@@ -3,6 +3,18 @@
 
 use crate::parse::contains_call_markup;
 
+#[test]
+fn glm_fallback_keeps_fenced_text_within_a_kept_range() {
+    let input = "discard\nintro\n```text\nshell/command>example\n```\nshell/command>real";
+    let start = input.find("intro").unwrap();
+    let (text, calls) = super::super::parse_unprotected_glm(input, &[start..input.len()]);
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].arguments, serde_json::json!({"command": "real"}));
+    assert!(text.starts_with("intro\n```text\nshell/command>example\n```"));
+    assert!(!text.contains("discard"));
+    assert!(!text.contains("shell/command>real"));
+}
+
 /// What `DeepSeek` V4 returned in place of a summary when its request declared
 /// no tools (captured from the `OpenHuman` harness benchmark).
 const DSML: &str = "<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name=\"shell\">\n\
