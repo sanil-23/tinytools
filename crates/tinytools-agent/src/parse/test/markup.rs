@@ -7,7 +7,8 @@ use crate::parse::contains_call_markup;
 fn glm_fallback_keeps_fenced_text_within_a_kept_range() {
     let input = "discard\nintro\n```text\nshell/command>example\n```\nshell/command>real";
     let start = input.find("intro").unwrap();
-    let (text, calls) = super::super::parse_unprotected_glm(input, &[start..input.len()]);
+    let kept = start..input.len();
+    let (text, calls) = super::super::parse_unprotected_glm(input, std::slice::from_ref(&kept));
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].arguments, serde_json::json!({"command": "real"}));
     assert!(text.starts_with("intro\n```text\nshell/command>example\n```"));
