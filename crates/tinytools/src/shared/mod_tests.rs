@@ -176,7 +176,10 @@ fn the_wrapper_is_the_tool_it_wraps() {
     let tool = wrapped();
     assert_eq!(tool.name(), "opinionated");
     assert_eq!(tool.description(), "answers nothing by default");
-    assert_eq!(tool.parameters_schema()["properties"]["x"]["type"], "string");
+    assert_eq!(
+        tool.parameters_schema()["properties"]["x"]["type"],
+        "string"
+    );
     assert_eq!(tool.spec().description, "a curated spec");
 }
 

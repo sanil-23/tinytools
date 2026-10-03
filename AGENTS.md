@@ -29,7 +29,8 @@ crates/
         ├── classification/ # `ToolScope`, `ToolCategory`
         ├── call/           # `ToolCallOptions`, `ToolTimeout`
         ├── context/        # `ToolRunContext`
-        └── naming/         # rendering a call for a human
+        ├── naming/         # rendering a call for a human
+        └── shared/         # `SharedTool`: an `Arc<dyn Tool>` as an owned belt entry
                             # each: mod.rs / types.rs / mod_tests.rs
 docs/
 ├── specs/              # behavior and architecture specifications
