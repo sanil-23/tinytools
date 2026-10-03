@@ -274,6 +274,28 @@ pub fn parse_tool_calls_with_pformat(
     parse_text(response, &options).into_parts()
 }
 
+/// Whether `text` contains a tool call written as markup in any grammar this
+/// crate recognises: a complete call, or a recognised block that did not
+/// decode (malformed, or opened and never closed).
+///
+/// For a caller that must refuse text which is really a tool call rather
+/// than read calls out of it — a summarizer whose request declared no tools,
+/// say, where `DeepSeek` V4 can answer with `<｜DSML｜invoke name="shell">…`
+/// instead of a summary. A response that is only a bare JSON object does
+/// not count, since an answer may legitimately be one, and markup quoted
+/// inside a language-tagged fence is protected as usual.
+#[must_use]
+pub fn contains_call_markup(text: &str) -> bool {
+    let outcome = parse_text(text, &ParseOptions::new().without_bare_json());
+    !outcome.calls.is_empty()
+        || outcome.diagnostics.iter().any(|diagnostic| {
+            matches!(
+                diagnostic,
+                ParseDiagnostic::MalformedBlock { .. } | ParseDiagnostic::UnterminatedBlock { .. }
+            )
+        })
+}
+
 /// Normalizes an argument value, decoding stringified JSON when possible.
 #[must_use]
 pub fn parse_arguments_value(raw: Option<&serde_json::Value>) -> serde_json::Value {
