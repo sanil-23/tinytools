@@ -44,8 +44,8 @@ pub use tinytools;
 
 pub use codecall::{CodeStyle, parse_calls as parse_code_calls, render_code_signature};
 pub use parse::{
-    extract_json_values, parse_arguments_value, parse_glm_style_tool_calls, parse_text,
-    parse_tool_call_value, parse_tool_calls, parse_tool_calls_from_json_value,
+    contains_call_markup, extract_json_values, parse_arguments_value, parse_glm_style_tool_calls,
+    parse_text, parse_tool_call_value, parse_tool_calls, parse_tool_calls_from_json_value,
     parse_tool_calls_with_pformat,
 };
 pub use pformat::{

@@ -12,7 +12,9 @@ const DSML: &str = "<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name=\"sh
 #[test]
 fn a_dsml_call_is_markup() {
     assert!(contains_call_markup(DSML));
-    assert!(contains_call_markup(&format!("Let me check first.\n\n{DSML}")));
+    assert!(contains_call_markup(&format!(
+        "Let me check first.\n\n{DSML}"
+    )));
 }
 
 #[test]
