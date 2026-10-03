@@ -12,6 +12,19 @@ fn glm_lines_parse_when_nothing_else_matched() {
 }
 
 #[test]
+fn fenced_example_survives_a_real_glm_call() {
+    let input = "Before\n```text\nshell/command>example\n```\nAfter\nshell/command>real";
+    let (text, calls) = parse(input);
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].name, "shell");
+    assert_eq!(calls[0].arguments, serde_json::json!({"command": "real"}));
+    assert!(text.contains("```text\nshell/command>example\n```"));
+    assert!(text.contains("Before"));
+    assert!(text.contains("After"));
+    assert!(!text.contains("shell/command>real"));
+}
+
+#[test]
 fn glm_parser_covers_json_payloads_invalid_urls_and_plain_commands() {
     let calls = parse_glm_style_tool_calls(concat!(
         "\n",
