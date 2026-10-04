@@ -32,6 +32,8 @@
 //! - [`context`] — [`ToolRunContext`], the narrow seam onto a live run.
 //! - [`workspace`] — [`WorkspaceDescriptor`], the root a tool may touch.
 //! - [`naming`] — rendering a call for a human.
+//! - [`shared`] — [`SharedTool`], [`share_belt`] and [`owned_belt`]: one
+//!   built `Arc<dyn Tool>` handed out as many owned `Box<dyn Tool>` belts.
 //! - [`rank`] — [`ToolRanker`], ranking a catalogue of tools against an
 //!   intent, and the lexical [`Bm25Ranker`] every host gets for free.
 //!
@@ -111,6 +113,7 @@ pub mod permission;
 pub mod policy;
 pub mod rank;
 pub mod result;
+pub mod shared;
 pub mod spec;
 pub mod tool;
 pub mod workspace;
@@ -141,6 +144,7 @@ pub use rank::{
     Bm25Index, Bm25Ranker, RankCandidate, RankContext, RankError, RankHit, ToolRanker, tokenize,
 };
 pub use result::{FileData, ImageData, ToolContent, ToolControl, ToolErrorKind, ToolResult};
+pub use shared::{SharedTool, owned_belt, share_belt};
 pub use spec::ToolSpec;
 pub use tool::{Tool, ToolExposure};
 pub use workspace::{SandboxMode, WorkspaceDescriptor};
