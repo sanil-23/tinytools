@@ -30,6 +30,8 @@
 //! - [`call`] — [`ToolCallOptions`] and [`ToolTimeout`], the per-invocation
 //!   inputs that are not arguments.
 //! - [`context`] — [`ToolRunContext`], the narrow seam onto a live run.
+//! - [`progress`] — [`ToolProgress`] and [`ProgressSink`], what a long-running
+//!   tool reports before it finishes.
 //! - [`workspace`] — [`WorkspaceDescriptor`], the root a tool may touch.
 //! - [`naming`] — rendering a call for a human.
 //! - [`rank`] — [`ToolRanker`], ranking a catalogue of tools against an
@@ -109,6 +111,7 @@ pub mod deferral;
 pub mod naming;
 pub mod permission;
 pub mod policy;
+pub mod progress;
 pub mod rank;
 pub mod result;
 pub mod spec;
@@ -137,6 +140,7 @@ pub use permission::PermissionLevel;
 pub use policy::{
     ToolAccess, ToolDisplay, ToolPolicy, ToolReplay, ToolRuntime, ToolSideEffects, WorkspaceAccess,
 };
+pub use progress::{ProgressSink, ToolProgress};
 pub use rank::{
     Bm25Index, Bm25Ranker, RankCandidate, RankContext, RankError, RankHit, ToolRanker, tokenize,
 };
