@@ -33,9 +33,18 @@ fn builders_set_each_field() {
 
 #[test]
 fn fraction_is_clamped_to_the_unit_interval() {
-    assert_eq!(ToolProgress::default().with_fraction(1.7).fraction, Some(1.0));
-    assert_eq!(ToolProgress::default().with_fraction(-3.0).fraction, Some(0.0));
-    assert_eq!(ToolProgress::default().with_fraction(f32::NAN).fraction, None);
+    assert_eq!(
+        ToolProgress::default().with_fraction(1.7).fraction,
+        Some(1.0)
+    );
+    assert_eq!(
+        ToolProgress::default().with_fraction(-3.0).fraction,
+        Some(0.0)
+    );
+    assert_eq!(
+        ToolProgress::default().with_fraction(f32::NAN).fraction,
+        None
+    );
 }
 
 #[test]
