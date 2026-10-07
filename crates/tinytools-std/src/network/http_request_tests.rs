@@ -475,10 +475,19 @@ async fn a_body_is_sent_and_a_success_response_is_formatted_with_redacted_cookie
 
 #[tokio::test]
 async fn a_non_success_response_is_reported_as_an_error() {
-    let (addr, _) = serve(vec![
-        "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-            .to_string(),
-    ])
+    // The failure now carries the whole response rather than just its code.
+    //
+    // It used to answer `HTTP 500` —, and in a measured case `HTTP 403`,
+    // twenty characters, after building the status line, headers and body and
+    // then dropping them. The discarded body was the only thing that said what
+    // was wrong: GitHub's 403 names the missing `User-Agent` header outright.
+    let body = "Request forbidden by administrative rules. \
+                Please make sure your request has a User-Agent header";
+    let (addr, _) = serve(vec![format!(
+        "HTTP/1.1 403 Forbidden\r\nContent-Length: {}\r\nX-RateLimit-Remaining: 59\r\nConnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    )])
     .await;
     let tool = test_tool(vec![]);
     let response = tool
@@ -491,8 +500,17 @@ async fn a_non_success_response_is_reported_as_an_error() {
         .await
         .unwrap();
     let result = tool.format_response(response).await.unwrap();
-    assert!(result.is_error);
-    assert!(result.text().contains("HTTP 500"));
+    assert!(result.is_error, "a 403 is still a failure");
+    let text = result.text();
+    // Anchored: a caller classifying the failure reads the status from the head
+    // of the text, and an unreadable one gets guessed at.
+    assert!(text.starts_with("Status: 403"), "{text}");
+    // The reason the server gave.
+    assert!(text.contains("User-Agent header"), "{text}");
+    // Header *values*, not the name printed twice. `x-ratelimit-remaining` is
+    // exactly what a caller wants on the failures this block renders.
+    let lower = text.to_ascii_lowercase();
+    assert!(lower.contains("x-ratelimit-remaining: 59"), "{text}");
 }
 
 #[tokio::test]

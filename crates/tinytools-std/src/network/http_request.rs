@@ -242,14 +242,30 @@ impl HttpRequestTool {
         let status = response.status();
         let status_code = status.as_u16();
 
-        let response_headers = response.headers().iter();
-        let headers_text = response_headers
-            .map(|(k, _)| {
-                let is_sensitive = k.as_str().to_lowercase().contains("set-cookie");
+        // Name *and* value. This printed the name twice — `{}: {:?}` over
+        // `(k.as_str(), k.as_str())` — so every line read
+        // `x-ratelimit-remaining: "x-ratelimit-remaining"` and the header block
+        // carried no information at all. The redaction beside it only makes
+        // sense if values were meant to be shown, which is the reading taken
+        // here: rate-limit and retry-after headers are exactly what a caller
+        // needs on the failures this block renders.
+        let headers_text = response
+            .headers()
+            .iter()
+            .map(|(name, value)| {
+                let lower = name.as_str().to_ascii_lowercase();
+                // A response can hand back credentials: `set-cookie` was
+                // already redacted, and anything cookie- or authorization-
+                // shaped belongs with it rather than in a model's context.
+                let is_sensitive = lower.contains("cookie") || lower.contains("authorization");
                 if is_sensitive {
-                    format!("{}: ***REDACTED***", k.as_str())
+                    format!("{}: ***REDACTED***", name.as_str())
                 } else {
-                    format!("{}: {:?}", k.as_str(), k.as_str())
+                    format!(
+                        "{}: {}",
+                        name.as_str(),
+                        value.to_str().unwrap_or("<binary>")
+                    )
                 }
             })
             .collect::<Vec<_>>()
@@ -271,7 +287,13 @@ impl HttpRequestTool {
         if status.is_success() {
             Ok(ToolResult::success(output))
         } else {
-            Ok(ToolResult::error(format!("HTTP {status_code}")))
+            // The same `output` on both arms. This returned the bare string
+            // `HTTP 403` — twenty characters — having already built the status
+            // line, headers and body and then dropped them, so the one part of
+            // the response that said *why* never reached the caller. A real
+            // case: GitHub's 403 names the missing `User-Agent` header outright,
+            // with a documentation link, and all of it was discarded.
+            Ok(ToolResult::error(output))
         }
     }
 
