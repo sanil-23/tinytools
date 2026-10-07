@@ -73,7 +73,9 @@ pub trait ToolRunContext: Send + Sync {
     /// without a context at all — stays correct and pays nothing.
     ///
     /// Implementations must not block: a tool may call this from a hot loop or
-    /// from a task it spawned. An update reported after the call has returned
+    /// from a task it spawned. A host that forwards updates to listeners must
+    /// document that those listeners may not call back into `report_progress`
+    /// re-entrantly. An update reported after the call has returned
     /// is the host's to drop; a tool should not rely on late updates landing.
     fn report_progress(&self, _update: ToolProgress) {}
 
