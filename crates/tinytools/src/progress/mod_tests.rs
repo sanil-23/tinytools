@@ -107,3 +107,11 @@ fn a_streaming_context_receives_progress_through_the_trait_object() {
     erased.report_progress(ToolProgress::message("b"));
     assert_eq!(*seen.lock().unwrap(), 2);
 }
+
+#[test]
+fn a_sink_debug_reports_whether_it_is_connected() {
+    let connected = format!("{:?}", ProgressSink::new(|_| {}));
+    let noop = format!("{:?}", ProgressSink::noop());
+    assert!(connected.contains("connected: true"), "{connected}");
+    assert!(noop.contains("connected: false"), "{noop}");
+}
