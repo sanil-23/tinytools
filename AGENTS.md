@@ -29,6 +29,7 @@ crates/
         ├── classification/ # `ToolScope`, `ToolCategory`
         ├── call/           # `ToolCallOptions`, `ToolTimeout`
         ├── context/        # `ToolRunContext`
+        ├── progress/       # `ToolProgress`, `ProgressSink`
         └── naming/         # rendering a call for a human
                             # each: mod.rs / types.rs / mod_tests.rs
 docs/
