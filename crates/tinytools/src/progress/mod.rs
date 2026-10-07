@@ -6,4 +6,4 @@ pub use types::{ProgressSink, ToolProgress};
 
 #[cfg(test)]
 #[path = "mod_tests.rs"]
-mod test;
+mod tests;

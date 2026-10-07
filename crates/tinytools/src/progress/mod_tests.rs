@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::json;
 
-use super::{ProgressSink, ToolProgress};
+use super::*;
 use crate::ToolRunContext;
 
 #[test]
