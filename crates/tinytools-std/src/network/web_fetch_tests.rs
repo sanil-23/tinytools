@@ -448,6 +448,30 @@ fn an_output_within_the_cap_is_returned_whole_and_unflagged() {
     assert!(rendered.content.contains("the prose that matters"));
 }
 
+#[tokio::test]
+async fn markup_truncated_input_is_reported_in_the_fetch_header() {
+    // Drive the body across the extractor's independent input ceiling. The
+    // large attribute keeps extracted text small, while proving that the
+    // extractor input itself was bounded and reported to the caller.
+    let body = format!(
+        "<!DOCTYPE html><html><body><div data-pad=\"{}\"></div><p>visible</p></body></html>",
+        "x".repeat(EXTRACTOR_INPUT_CEILING)
+    );
+    assert!(body.len() > EXTRACTOR_INPUT_CEILING);
+    let result = fetch_canned(http_response(
+        "200 OK",
+        "Content-Type: text/html\r\n",
+        &body,
+    ))
+    .await;
+    let output = result.output();
+    assert!(
+        output.contains(&format!("markup_truncated_at={EXTRACTOR_INPUT_CEILING}B")),
+        "header should disclose the extractor input ceiling: {output}"
+    );
+    assert!(output.ends_with("visible"), "got: {output}");
+}
+
 #[test]
 fn raw_output_is_bounded_by_the_same_cap() {
     // With `raw: true` there is no extraction, so the cap applies to the body
