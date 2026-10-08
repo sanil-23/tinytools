@@ -481,7 +481,7 @@ async fn a_hook_failure_is_returned_as_the_error_without_a_retry() {
 
 #[tokio::test]
 async fn a_body_is_sent_and_a_success_response_is_formatted_with_redacted_cookies() {
-    let ok = "HTTP/1.1 200 OK\r\nSet-Cookie: session=abc\r\nX-Other: 1\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello";
+    let ok = "HTTP/1.1 200 OK\r\nSet-Cookie: session=abc\r\nWWW-Authenticate: Bearer secret-challenge\r\nX-Api-Key: api-secret\r\nX-Service-Token: service-secret\r\nX-Other: 1\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello";
     let (addr, seen) = serve(vec![ok.to_string()]).await;
     let tool = test_tool(vec![]);
     let response = tool
@@ -499,6 +499,16 @@ async fn a_body_is_sent_and_a_success_response_is_formatted_with_redacted_cookie
     assert!(text.contains("hello"), "{text}");
     assert!(text.contains("set-cookie: ***REDACTED***"), "{text}");
     assert!(!text.contains("session=abc"), "{text}");
+    for secret in ["secret-challenge", "api-secret", "service-secret"] {
+        assert!(!text.contains(secret), "response leaked {secret}: {text}");
+    }
+    for header in ["www-authenticate", "x-api-key", "x-service-token"] {
+        assert!(
+            text.to_ascii_lowercase()
+                .contains(&format!("{header}: ***redacted***")),
+            "{text}"
+        );
+    }
     assert!(seen.lock().unwrap()[0].ends_with("payload"));
 }
 
