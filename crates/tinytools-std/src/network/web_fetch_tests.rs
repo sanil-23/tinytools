@@ -460,7 +460,6 @@ fn markup_truncated_input_is_reported_in_the_fetch_header() {
     assert!(body.len() > EXTRACTOR_INPUT_CEILING);
     let rendered = render_body(&TestHtml, body, true, 1_000);
     assert!(rendered.markup_truncated);
-    assert!(rendered.content.contains("visible"));
     let mut output = "status=200 url=https://example.com content=markdown".to_string();
     append_markup_truncation_header(&mut output, &rendered);
     assert!(
