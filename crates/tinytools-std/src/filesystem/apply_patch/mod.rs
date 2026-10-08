@@ -157,7 +157,14 @@ impl ApplyPatchTool {
         // the per-edit `path` requirement rejected every one of them and the
         // run halted on the fourth). The top-level path is the default; an
         // edit's own path still wins.
-        let default_path = args.get("path").and_then(|v| v.as_str());
+        let default_path = match args.get("path") {
+            Some(value) => Some(
+                value
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("top-level `path` must be a string"))?,
+            ),
+            None => None,
+        };
 
         // Parse + group edits by file.
         let mut parsed: Vec<ParsedEdit> = Vec::with_capacity(edits.len());
