@@ -266,9 +266,7 @@ async fn an_outgoing_request_carries_a_user_agent() {
         let mut buf = [0u8; 1024];
         while !request.windows(4).any(|window| window == b"\r\n\r\n") {
             let n = socket.read(&mut buf).await.unwrap();
-            if n == 0 {
-                panic!("peer closed before sending the complete HTTP headers");
-            }
+            assert!(n != 0, "peer closed before sending the complete HTTP headers");
             request.extend_from_slice(&buf[..n]);
         }
         *request_log.lock().unwrap() = String::from_utf8_lossy(&request).to_string();
