@@ -483,11 +483,10 @@ fn raw_output_is_bounded_by_the_same_cap() {
 fn the_markup_ceiling_is_far_above_any_real_page() {
     // Sized against the measured worst case, not picked round. A ceiling near
     // the old default would reintroduce the bug for ordinary documents.
-    assert!(EXTRACTOR_INPUT_CEILING >= 8 * 1024 * 1024);
-    assert!(
-        EXTRACTOR_INPUT_CEILING > 433_638 * 10,
-        "must dwarf the 434 KB page that found this"
-    );
+    const {
+        assert!(EXTRACTOR_INPUT_CEILING >= 8 * 1024 * 1024);
+        assert!(EXTRACTOR_INPUT_CEILING > 433_638 * 10);
+    }
 }
 
 #[test]
