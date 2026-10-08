@@ -230,9 +230,16 @@ fn redact_headers_does_not_alter_original() {
 
 #[test]
 fn only_explicitly_safe_response_header_values_are_displayed() {
-    for safe in ["content-type", "content-length", "retry-after", "x-ratelimit-remaining"] {
+    for safe in [
+        "content-type",
+        "content-length",
+        "retry-after",
+        "x-ratelimit-remaining",
+    ] {
         assert!(HttpRequestTool::is_safe_response_header(safe), "{safe}");
-        assert!(HttpRequestTool::is_safe_response_header(&safe.to_ascii_uppercase()));
+        assert!(HttpRequestTool::is_safe_response_header(
+            &safe.to_ascii_uppercase()
+        ));
     }
 
     for sensitive in [
