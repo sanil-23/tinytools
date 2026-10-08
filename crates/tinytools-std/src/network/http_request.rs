@@ -174,6 +174,18 @@ impl HttpRequestTool {
             .collect()
     }
 
+    fn is_safe_response_header(name: &str) -> bool {
+        matches!(
+            name.to_ascii_lowercase().as_str(),
+            "content-type"
+                | "content-length"
+                | "retry-after"
+                | "x-ratelimit-limit"
+                | "x-ratelimit-remaining"
+                | "x-ratelimit-reset"
+        )
+    }
+
     async fn execute_request(
         &self,
         url: &str,
@@ -253,12 +265,10 @@ impl HttpRequestTool {
             .headers()
             .iter()
             .map(|(name, value)| {
-                let lower = name.as_str().to_ascii_lowercase();
-                // A response can hand back credentials: `set-cookie` was
-                // already redacted, and anything cookie- or authorization-
-                // shaped belongs with it rather than in a model's context.
-                let is_sensitive = lower.contains("cookie") || lower.contains("authorization");
-                if is_sensitive {
+                // Response headers are untrusted and service-specific headers
+                // can carry credentials under arbitrary names. Only expose
+                // values from this small set of useful diagnostic headers.
+                if !Self::is_safe_response_header(name.as_str()) {
                     format!("{}: ***REDACTED***", name.as_str())
                 } else {
                     format!(
