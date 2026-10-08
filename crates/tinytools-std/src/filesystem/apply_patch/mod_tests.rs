@@ -202,11 +202,15 @@ async fn apply_patch_rejects_malformed_edit_path_instead_of_using_default() {
             "path": "default.txt",
             "edits": [{ "path": null, "old_string": "original", "new_string": "changed" }]
         }))
-        .await
-        .unwrap();
+        .await;
 
-    assert!(result.is_error);
-    assert!(result.output().contains("`path` must be a string"));
+    assert!(result.is_err());
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("`path` must be a string")
+    );
     assert_eq!(
         tokio::fs::read_to_string(dir.join("default.txt"))
             .await
