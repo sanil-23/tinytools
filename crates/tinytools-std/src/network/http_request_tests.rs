@@ -552,7 +552,7 @@ fn the_test_gate_builds_a_client_with_the_requested_timeouts() {
 /// until this was set. `serve` records the raw request, which is the only way
 /// to assert an outgoing header actually left the process.
 #[tokio::test]
-async fn an_outgoing_request_carries_a_user_agent() {
+async fn an_outgoing_request_carries_a_user_agent() -> anyhow::Result<()> {
     let (addr, seen) = serve(vec![
         "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".to_string(),
     ])
@@ -565,10 +565,12 @@ async fn an_outgoing_request_carries_a_user_agent() {
             vec![],
             None,
         )
-        .await
-        .expect("the request reaches the server");
+        .await?;
 
-    let request = seen.lock().expect("the log is readable")[0].clone();
+    let request = seen
+        .lock()
+        .map_err(|error| anyhow::anyhow!("request log mutex poisoned: {error}"))?[0]
+        .clone();
     let lower = request.to_ascii_lowercase();
     assert!(
         lower.contains("user-agent:"),
@@ -578,4 +580,5 @@ async fn an_outgoing_request_carries_a_user_agent() {
         lower.contains("user-agent: tinytools/"),
         "the header must identify this crate:\n{request}"
     );
+    Ok(())
 }

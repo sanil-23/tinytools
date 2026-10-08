@@ -30,7 +30,7 @@
 ///
 /// Identifying rather than disguised: a server that wants to throttle or block
 /// this traffic should be able to name it.
-pub const USER_AGENT: &str = concat!("tinytools/", env!("CARGO_PKG_VERSION"));
+pub(super) const USER_AGENT: &str = concat!("tinytools/", env!("CARGO_PKG_VERSION"));
 
 /// The host policy a network tool consults before it acts.
 ///
