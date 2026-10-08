@@ -262,9 +262,16 @@ async fn an_outgoing_request_carries_a_user_agent() {
     let request_log = Arc::clone(&seen);
     let server = tokio::spawn(async move {
         let (mut socket, _) = listener.accept().await.unwrap();
-        let mut buf = vec![0u8; 8192];
-        let n = socket.read(&mut buf).await.unwrap();
-        *request_log.lock().unwrap() = String::from_utf8_lossy(&buf[..n]).to_string();
+        let mut request = Vec::new();
+        let mut buf = [0u8; 1024];
+        while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+            let n = socket.read(&mut buf).await.unwrap();
+            if n == 0 {
+                break;
+            }
+            request.extend_from_slice(&buf[..n]);
+        }
+        *request_log.lock().unwrap() = String::from_utf8_lossy(&request).to_string();
         socket
             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
             .await
