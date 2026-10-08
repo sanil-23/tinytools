@@ -208,7 +208,9 @@ async fn apply_patch_rejects_malformed_edit_path_instead_of_using_default() {
     assert!(result.is_error);
     assert!(result.output().contains("`path` must be a string"));
     assert_eq!(
-        tokio::fs::read_to_string(dir.join("default.txt")).await.unwrap(),
+        tokio::fs::read_to_string(dir.join("default.txt"))
+            .await
+            .unwrap(),
         "original"
     );
     let _ = tokio::fs::remove_dir_all(&dir).await;
@@ -234,8 +236,14 @@ async fn apply_patch_lets_an_edits_own_path_win_over_the_top_level_one() {
         .await
         .unwrap();
     assert!(!result.is_error, "{}", result.output());
-    assert_eq!(tokio::fs::read_to_string(dir.join("a.txt")).await.unwrap(), "ALPHA");
-    assert_eq!(tokio::fs::read_to_string(dir.join("b.txt")).await.unwrap(), "BRAVO");
+    assert_eq!(
+        tokio::fs::read_to_string(dir.join("a.txt")).await.unwrap(),
+        "ALPHA"
+    );
+    assert_eq!(
+        tokio::fs::read_to_string(dir.join("b.txt")).await.unwrap(),
+        "BRAVO"
+    );
 }
 
 #[tokio::test]
