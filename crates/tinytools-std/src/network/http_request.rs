@@ -268,14 +268,14 @@ impl HttpRequestTool {
                 // Response headers are untrusted and service-specific headers
                 // can carry credentials under arbitrary names. Only expose
                 // values from this small set of useful diagnostic headers.
-                if !Self::is_safe_response_header(name.as_str()) {
-                    format!("{}: ***REDACTED***", name.as_str())
-                } else {
+                if Self::is_safe_response_header(name.as_str()) {
                     format!(
                         "{}: {}",
                         name.as_str(),
                         value.to_str().unwrap_or("<binary>")
                     )
+                } else {
+                    format!("{}: ***REDACTED***", name.as_str())
                 }
             })
             .collect::<Vec<_>>()
