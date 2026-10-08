@@ -331,9 +331,7 @@ impl WebFetchTool {
         if rendered.output_capped {
             header.push_str(&format!(" output_capped_at={max_bytes}B"));
         }
-        if rendered.markup_truncated {
-            header.push_str(&format!(" markup_truncated_at={EXTRACTOR_INPUT_CEILING}B"));
-        }
+        append_markup_truncation_header(&mut header, &rendered);
         if converted && extracted < downloaded {
             header.push_str(&format!(" extracted={extracted}B_of_{downloaded}B"));
         }
@@ -436,6 +434,13 @@ struct RenderedBody {
     /// Whether the markup was cut before the extractor saw it, which only
     /// happens past [`EXTRACTOR_INPUT_CEILING`].
     markup_truncated: bool,
+}
+
+/// Add the extractor input ceiling to a fetch header when markup was cut.
+fn append_markup_truncation_header(header: &mut String, rendered: &RenderedBody) {
+    if rendered.markup_truncated {
+        header.push_str(&format!(" markup_truncated_at={EXTRACTOR_INPUT_CEILING}B"));
+    }
 }
 
 /// Convert, **then** bound.

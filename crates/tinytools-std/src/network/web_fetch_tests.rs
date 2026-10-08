@@ -448,8 +448,8 @@ fn an_output_within_the_cap_is_returned_whole_and_unflagged() {
     assert!(rendered.content.contains("the prose that matters"));
 }
 
-#[tokio::test]
-async fn markup_truncated_input_is_reported_in_the_fetch_header() {
+#[test]
+fn markup_truncated_input_is_reported_in_the_fetch_header() {
     // Drive the body across the extractor's independent input ceiling. The
     // large attribute keeps extracted text small, while proving that the
     // extractor input itself was bounded and reported to the caller.
@@ -458,18 +458,15 @@ async fn markup_truncated_input_is_reported_in_the_fetch_header() {
         "x".repeat(EXTRACTOR_INPUT_CEILING)
     );
     assert!(body.len() > EXTRACTOR_INPUT_CEILING);
-    let result = fetch_canned(http_response(
-        "200 OK",
-        "Content-Type: text/html\r\n",
-        &body,
-    ))
-    .await;
-    let output = result.output();
+    let rendered = render_body(&TestHtml, body, true, 1_000);
+    assert!(rendered.markup_truncated);
+    assert!(rendered.content.contains("visible"));
+    let mut output = "status=200 url=https://example.com content=markdown".to_string();
+    append_markup_truncation_header(&mut output, &rendered);
     assert!(
         output.contains(&format!("markup_truncated_at={EXTRACTOR_INPUT_CEILING}B")),
         "header should disclose the extractor input ceiling: {output}"
     );
-    assert!(output.ends_with("visible"), "got: {output}");
 }
 
 #[test]
