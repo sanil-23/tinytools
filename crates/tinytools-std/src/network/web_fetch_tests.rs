@@ -267,7 +267,7 @@ async fn an_outgoing_request_carries_a_user_agent() {
         while !request.windows(4).any(|window| window == b"\r\n\r\n") {
             let n = socket.read(&mut buf).await.unwrap();
             if n == 0 {
-                break;
+                panic!("peer closed before sending the complete HTTP headers");
             }
             request.extend_from_slice(&buf[..n]);
         }
