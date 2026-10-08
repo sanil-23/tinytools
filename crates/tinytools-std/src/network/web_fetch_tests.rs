@@ -280,7 +280,10 @@ async fn an_outgoing_request_carries_a_user_agent() {
     server.await.unwrap();
 
     let request = seen.lock().unwrap().to_ascii_lowercase();
-    assert!(request.contains("user-agent: tinytools/"), "got: {request}");
+    let user_agent = request
+        .lines()
+        .find_map(|line| line.strip_prefix("user-agent: "));
+    assert_eq!(user_agent, Some(concat!("tinytools/", env!("CARGO_PKG_VERSION"))));
 }
 
 fn http_response(status_line: &str, headers: &str, body: &str) -> String {
