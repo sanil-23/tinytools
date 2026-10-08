@@ -253,6 +253,36 @@ async fn serve_once(response: &str) -> String {
     format!("http://{addr}/page")
 }
 
+#[tokio::test]
+async fn an_outgoing_request_carries_a_user_agent() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let seen = Arc::new(std::sync::Mutex::new(String::new()));
+    let request_log = Arc::clone(&seen);
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut buf = vec![0u8; 8192];
+        let n = socket.read(&mut buf).await.unwrap();
+        *request_log.lock().unwrap() = String::from_utf8_lossy(&buf[..n]).to_string();
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+            .await
+            .unwrap();
+    });
+
+    let tool = fetch(test_security(), vec![], None, None);
+    let result = tool
+        .fetch_validated(&format!("http://{addr}/"), 1_000_000, false)
+        .await
+        .unwrap();
+    assert!(!result.is_error, "got: {}", result.output());
+    server.await.unwrap();
+
+    let request = seen.lock().unwrap().to_ascii_lowercase();
+    assert!(request.contains("user-agent: tinytools/"), "got: {request}");
+}
+
 fn http_response(status_line: &str, headers: &str, body: &str) -> String {
     format!(
         "HTTP/1.1 {status_line}\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
