@@ -188,6 +188,33 @@ async fn apply_patch_takes_a_top_level_path_as_the_default_for_every_edit() {
 }
 
 #[tokio::test]
+async fn apply_patch_rejects_malformed_edit_path_instead_of_using_default() {
+    let dir = std::env::temp_dir().join("openhuman_test_patch_malformed_path");
+    let _ = tokio::fs::remove_dir_all(&dir).await;
+    tokio::fs::create_dir_all(&dir).await.unwrap();
+    tokio::fs::write(dir.join("default.txt"), "original")
+        .await
+        .unwrap();
+
+    let tool = ApplyPatchTool::new(test_security(dir.clone()));
+    let result = tool
+        .execute(json!({
+            "path": "default.txt",
+            "edits": [{ "path": null, "old_string": "original", "new_string": "changed" }]
+        }))
+        .await
+        .unwrap();
+
+    assert!(result.is_error);
+    assert!(result.output().contains("`path` must be a string"));
+    assert_eq!(
+        tokio::fs::read_to_string(dir.join("default.txt")).await.unwrap(),
+        "original"
+    );
+    let _ = tokio::fs::remove_dir_all(&dir).await;
+}
+
+#[tokio::test]
 async fn apply_patch_lets_an_edits_own_path_win_over_the_top_level_one() {
     let dir = std::env::temp_dir().join("openhuman_test_patch_top_level_path_override");
     let _ = tokio::fs::remove_dir_all(&dir).await;

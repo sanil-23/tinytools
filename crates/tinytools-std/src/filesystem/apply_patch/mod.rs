@@ -162,15 +162,16 @@ impl ApplyPatchTool {
         // Parse + group edits by file.
         let mut parsed: Vec<ParsedEdit> = Vec::with_capacity(edits.len());
         for (i, raw) in edits.iter().enumerate() {
-            let path = raw
-                .get("path")
-                .and_then(|v| v.as_str())
-                .or(default_path)
-                .ok_or_else(|| {
+            let path = match raw.get("path") {
+                Some(value) => value.as_str().ok_or_else(|| {
+                    anyhow::anyhow!("edit[{i}]: `path` must be a string")
+                })?,
+                None => default_path.ok_or_else(|| {
                     anyhow::anyhow!(
                         "edit[{i}]: missing `path` (give each edit a `path`, or one top-level `path` for all edits)"
                     )
-                })?;
+                })?,
+            };
             let old_string = raw
                 .get("old_string")
                 .and_then(|v| v.as_str())
